@@ -1,0 +1,5 @@
+# Generated Go output lands next to the input file by default.
+# (ts2go writes e.g. testdata/bank.ts → testdata/bank.go)
+testdata/*.go
+/bank.go
+/out.go
