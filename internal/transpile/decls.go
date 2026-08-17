@@ -541,6 +541,14 @@ func unionConstSuffix(quoted string) string {
 // are wrapped in the jsrt shim: the body runs in a goroutine returning a
 // promise, with await mapped to jsrtAwait inside.
 func (tr *transpiler) emitFunction(n tsmorph.Node) error {
+	return tr.emitFunctionAs(n, false)
+}
+
+// emitFunctionAs emits a function declaration: `func name(params) ret {...}`
+// at top level, or a local closure `name := func(params) ret {...}` when
+// closure is set. TS allows function declarations nested inside functions;
+// Go does not, so those become closures.
+func (tr *transpiler) emitFunctionAs(n tsmorph.Node, closure bool) error {
 	name := n.Name()
 	params, ret, err := tr.signatureFromChildren(n)
 	if err != nil {
@@ -556,36 +564,33 @@ func (tr *transpiler) emitFunction(n tsmorph.Node) error {
 	if isAsync {
 		tr.recordGap(SevApprox, "async", n, "async function via jsrt shim (goroutine-per-call); swap for native concurrency later")
 		tr.retStack[len(tr.retStack)-1] = "any"
-		tr.out.line("func " + name + "(" + params + ")" + ret + " {")
-		tr.out.indent()
+	}
+	head := "func " + name
+	if closure {
+		head = name + " := func"
+	}
+	tr.out.line(head + "(" + params + ")" + ret + " {")
+	tr.out.indent()
+	if isAsync {
 		tr.out.line("return jsrtAsync(func() any {")
 		tr.out.indent()
-		if body, ok := n.GetBody(); ok {
-			if err := tr.emitBlock(body); err != nil {
-				return err
-			}
-		} else {
-			tr.out.line("panic(\"not implemented\")")
-		}
-		tr.out.dedent()
-		tr.out.line("})")
-		tr.out.dedent()
-		tr.out.line("}")
-		tr.out.blank()
-		return nil
 	}
-	tr.out.line("func " + name + "(" + params + ")" + ret + " {")
-	tr.out.indent()
 	if body, ok := n.GetBody(); ok {
 		if err := tr.emitBlock(body); err != nil {
 			return err
 		}
 	} else {
-		tr.out.line("panic(\"not implemented\")")
+		tr.out.line(`panic("not implemented")`)
+	}
+	if isAsync {
+		tr.out.dedent()
+		tr.out.line("})")
 	}
 	tr.out.dedent()
 	tr.out.line("}")
-	tr.out.blank()
+	if !closure {
+		tr.out.blank()
+	}
 	return nil
 }
 

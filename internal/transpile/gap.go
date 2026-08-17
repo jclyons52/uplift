@@ -45,13 +45,16 @@ func (w WorkItem) weight() int {
 }
 
 // recordGap appends a work item to the report. Never fails — gap collection
-// must not abort transpilation.
+// must not abort transpilation. Messages are collapsed to one line at
+// record time: multi-line messages (e.g. generated-code snippets embedded
+// in an approx note) would break out of the manifest comment block in the
+// emitted file.
 func (tr *transpiler) recordGap(sev Severity, category string, n tsmorph.Node, format string, args ...any) {
 	item := WorkItem{
 		Severity: sev,
 		Category: category,
 		Line:     tr.lineOf(n),
-		Message:  fmt.Sprintf(format, args...),
+		Message:  oneLine(fmt.Sprintf(format, args...)),
 		Snippet:  oneLine(snippetLong(n)),
 	}
 	tr.items = append(tr.items, item)
@@ -143,7 +146,7 @@ func (tr *transpiler) emitTodoStatement(n tsmorph.Node, format string, args ...a
 			tr.out.line("_ = 0 // TODO(ts2go): untranslated statement")
 		}
 	}()
-	msg := fmt.Sprintf(format, args...)
+	msg := oneLine(fmt.Sprintf(format, args...))
 	tr.recordGap(SevTodo, "statement", n, "%s", msg)
 	tr.out.line("// TODO(ts2go): " + msg)
 	if s := oneLine(snippetLong(n)); s != "" {

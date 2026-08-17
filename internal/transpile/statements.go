@@ -171,7 +171,9 @@ func (tr *transpiler) emitStatement(n tsmorph.Node) error {
 	case ast.IsClassDeclaration(n.ASTNode()):
 		return tr.emitClass(n)
 	case ast.IsFunctionDeclaration(n.ASTNode()):
-		return tr.emitFunction(n)
+		// Nested function declarations are legal TS but illegal Go; emit
+		// them as local closures inside function bodies.
+		return tr.emitFunctionAs(n, len(tr.retStack) > 0)
 	case ast.IsEmptyStatement(n.ASTNode()):
 		return nil
 	default:
@@ -1001,6 +1003,13 @@ func (tr *transpiler) binaryExpression(n tsmorph.Node) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Assignment used as an expression value (`Set(x, sym = makeSym())`) is
+	// TS idiom but has no Go form — wrap in an IIFE that assigns then yields
+	// the target.
+	if isAssignmentOp(op) {
+		tr.recordGap(SevApprox, "expression", n, "assignment used as a value — IIFE assigns then returns; verify the target type")
+		return "func() any { " + ls + " " + op + " " + rs + "; return " + ls + " }()", nil
+	}
 	switch op {
 	case "===", "==":
 		return ls + " == " + rs, nil
@@ -1036,6 +1045,16 @@ func (tr *transpiler) binaryExpression(n tsmorph.Node) (string, error) {
 	default:
 		return ls + " " + op + " " + rs, nil
 	}
+}
+
+// isAssignmentOp reports whether op is an assignment operator (Go has no
+// assignment expression, so these must not leak into expression position).
+func isAssignmentOp(op string) bool {
+	switch op {
+	case "=", "+=", "-=", "*=", "/=", "%=", "**=", "|=", "&=", "^=", "<<=", ">>=", "&&=", "||=", "??=":
+		return true
+	}
+	return false
 }
 
 // nullishCoalesce maps `a ?? b` to a nil-guard helper inline.
@@ -1407,7 +1426,9 @@ func snippet(n tsmorph.Node) string {
 	return s
 }
 
-// escapeFmt escapes % in format strings destined for fmt.Sprintf.
+// escapeFmt escapes % and double quotes in format strings destined for
+// fmt.Sprintf (the whole format string is wrapped in Go double quotes).
 func escapeFmt(s string) string {
-	return strings.ReplaceAll(s, "%", "%%")
+	s = strings.ReplaceAll(s, "%", "%%")
+	return strings.ReplaceAll(s, `"`, `\"`)
 }

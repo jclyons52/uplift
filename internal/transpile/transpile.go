@@ -204,9 +204,18 @@ func (tr *transpiler) buildReport(ok bool) *Report {
 		DeclCount:   len(tr.sf.Statements()),
 		Items:       append([]WorkItem(nil), tr.items...),
 		EmittedOK:   ok && len(tr.fatal) == 0,
-		FatalErrors: append([]string(nil), tr.fatal...),
+		FatalErrors: oneLineAll(tr.fatal),
 	}
 	return r
+}
+
+// oneLineAll collapses every string in a slice to one line (see oneLine).
+func oneLineAll(ss []string) []string {
+	out := make([]string, len(ss))
+	for i, s := range ss {
+		out[i] = oneLine(s)
+	}
+	return out
 }
 
 // ---------------------------------------------------------------------------
@@ -239,6 +248,8 @@ func (tr *transpiler) goType(n tsmorph.Node) (string, error) {
 		return tr.goType(firstChild(n))
 	case ast.IsFunctionTypeNode(n.ASTNode()):
 		return tr.goFunctionType(n)
+	case ast.IsConstructorTypeNode(n.ASTNode()):
+		return tr.goConstructorType(n)
 	case ast.IsKeywordTypeNode(n.ASTNode()):
 		return tr.goKeywordType(n)
 	case ast.IsImportTypeNode(n.ASTNode()):
@@ -291,6 +302,11 @@ func (tr *transpiler) goTypeReference(n tsmorph.Node) (string, error) {
 		case "Array":
 			return "[]" + conv[0], nil
 		case "Record":
+			if len(conv) == 2 {
+				return "map[" + conv[0] + "]" + conv[1], nil
+			}
+		case "Map":
+			// TS's Map<K, V> interface → Go's builtin map[K]V.
 			if len(conv) == 2 {
 				return "map[" + conv[0] + "]" + conv[1], nil
 			}
@@ -391,6 +407,21 @@ func (tr *transpiler) goFunctionType(n tsmorph.Node) (string, error) {
 	return "func(" + strings.Join(params, ", ") + ") " + ret, nil
 }
 
+// goConstructorType handles `new (args) => T`: Go has no constructor-typed
+// values, so this maps to a plain func type (approximately — construction
+// semantics are lost) and is flagged for LLM verification.
+func (tr *transpiler) goConstructorType(n tsmorph.Node) (string, error) {
+	params, ret, err := tr.signatureFromChildren(n)
+	if err != nil {
+		return "", err
+	}
+	if ret == "" {
+		ret = "any"
+	}
+	tr.recordGap(SevApprox, "type", n, "constructor type mapped to func type (construction semantics not preserved)")
+	return "func(" + params + ") " + ret, nil
+}
+
 // goKeywordType handles `string`, `number`, `boolean`, `any`, etc.
 func (tr *transpiler) goKeywordType(n tsmorph.Node) (string, error) {
 	name := n.Text()
@@ -430,7 +461,26 @@ func (tr *transpiler) cleanCheckerType(s string) string {
 	if s == "" || s == "any" {
 		return "any"
 	}
-	return mapCheckerType(s)
+	s = mapCheckerType(s)
+	// Generic type text arrives TS-style (`Map<K, V>`, `NodeArray<Node>`);
+	// Go needs square brackets. Function types (`(x) => y`) never contain
+	// type arguments, so the arrow is a safe discriminator.
+	if !strings.Contains(s, "=>") {
+		s = strings.ReplaceAll(s, "<", "[")
+		s = strings.ReplaceAll(s, ">", "]")
+	}
+	// Postfix array syntax: `Foo[]` / `Foo[][]` → `[]Foo` / `[][]Foo`.
+	for strings.HasSuffix(s, "[]") {
+		s = "[]" + strings.TrimSuffix(s, "[]")
+	}
+	// TS's Map<K, V> interface maps to Go's builtin map[K]V.
+	if strings.HasPrefix(s, "Map[") {
+		s = "map[" + strings.TrimPrefix(s, "Map[")
+		if i := strings.Index(s, ", "); i > 0 {
+			s = s[:i] + "]" + s[i+2:]
+		}
+	}
+	return s
 }
 
 // mapCheckerType maps TS primitive type names (as rendered by the checker)

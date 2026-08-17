@@ -86,6 +86,88 @@ func TestImportTypeDegrades(t *testing.T) {
 	compileGo(t, "imp.go", out)
 }
 
+// TestNestedFunctionBecomesClosure: a function declared inside a function is
+// legal TS but illegal Go; it must become a local closure.
+func TestNestedFunctionBecomesClosure(t *testing.T) {
+	out := transpileSrc(t, `function outer() {
+  function inner(x: number) { return x + 1; }
+  return inner(1);
+}`)
+	if strings.Contains(out, "func inner") {
+		t.Fatalf("nested function must not emit a Go declaration:\n%s", out)
+	}
+	if !strings.Contains(out, "inner := func(x float64) float64") {
+		t.Errorf("nested function should become a closure:\n%s", out)
+	}
+	compileGo(t, "nest.go", out)
+}
+
+// TestConstructorTypeMapsToFunc: `new (args) => T` becomes a func type with
+// an approx flag, not raw TS text.
+func TestConstructorTypeMapsToFunc(t *testing.T) {
+	out := transpileSrc(t, `interface BoxLike { v: number; }
+function makeIt(f: new (v: number) => BoxLike): number { return 1; }`)
+	body := out[strings.Index(out, "package "):]
+	if strings.Contains(body, "=> BoxLike") {
+		t.Fatalf("constructor type must not leak raw TS into the body:\n%s", out)
+	}
+	if !strings.Contains(body, "func(v float64)") {
+		t.Errorf("constructor type should map to a func type:\n%s", out)
+	}
+	if !strings.Contains(out, "constructor type mapped to func") {
+		t.Errorf("constructor type should be flagged approx:\n%s", out)
+	}
+	compileGo(t, "ctor.go", out)
+}
+
+// TestTemplateLiteralWithQuotes: template chunks containing double quotes
+// must be escaped inside the fmt.Sprintf format string.
+func TestTemplateLiteralWithQuotes(t *testing.T) {
+	src := "const name = \"x\";\nconst s = `\"${name}\"`;\n"
+	out := transpileSrc(t, src)
+	body := out[strings.Index(out, "package "):]
+	if strings.Contains(body, `""%v""`) {
+		t.Fatalf("embedded quotes must be escaped in the format string:\n%s", out)
+	}
+	if !strings.Contains(body, `\"%v\"`) {
+		t.Errorf("expected escaped quotes around %%v:\n%s", out)
+	}
+	compileGo(t, "tpl.go", out)
+}
+
+// TestCheckerGenericBrackets: checker-rendered generic types (Map<K, V>,
+// NodeArray<Node>) must use Go square brackets, not TS angle brackets.
+func TestCheckerGenericBrackets(t *testing.T) {
+	out := transpileSrc(t, `interface Box2 { v: number; }
+function f(xs: Map<string, Box2>): number { return 1; }`)
+	body := out[strings.Index(out, "package "):]
+	if strings.Contains(body, "Map<string") || strings.Contains(body, "Box2>") {
+		t.Fatalf("checker generic text must not leak angle brackets:\n%s", out)
+	}
+	if !strings.Contains(body, "map[string]Box2") {
+		t.Errorf("generic should become map[string]Box2:\n%s", out)
+	}
+	compileGo(t, "gen.go", out)
+}
+
+// TestAssignmentAsExpression: `Set(x, sym = make())` — assignment used as a
+// value — must become an IIFE, not raw Go.
+func TestAssignmentAsExpression(t *testing.T) {
+	out := transpileSrc(t, `let sym: string = "";
+function f(): string {
+  const x = (sym = "a");
+  return sym;
+}`)
+	body := out[strings.Index(out, "package "):]
+	if !strings.Contains(body, "func() any { sym = ") {
+		t.Fatalf("assignment-as-value should become an IIFE:\n%s", out)
+	}
+	if !strings.Contains(out, "assignment used as a value") {
+		t.Errorf("assignment-as-value should be flagged approx:\n%s", out)
+	}
+	compileGo(t, "asn.go", out)
+}
+
 // TestPanicRecovery proves the resilience contract holds even when a
 // transpile step panics: the panic becomes an error (recorded as a fatal
 // item, emitted as a TODO placeholder) instead of aborting the file. Both
