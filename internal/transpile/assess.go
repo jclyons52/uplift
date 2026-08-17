@@ -37,6 +37,96 @@ type Report struct {
 	Files []*Report
 }
 
+// GroupedWorkItem collapses the many identical work items a large file
+// produces (types.ts emits ~50k items; checker.ts ~5k+ distinct gaps) into
+// one entry with a count and a line range, so the manifest stays a worklist.
+type GroupedWorkItem struct {
+	Severity  Severity
+	Category  string
+	Message   string
+	Count     int    // number of identical items collapsed into this one
+	FirstLine int    // earliest TS line (0 if none)
+	LastLine  int    // latest TS line
+	Snippet   string // sample snippet for context
+}
+
+// CategoryCount is one category's tally for the report rollup.
+type CategoryCount struct {
+	Category string
+	Count    int
+	Severity Severity // most common severity in the category
+}
+
+// GroupedItems collapses identical (Severity, Category, Message) items,
+// preserving first-seen order.
+func (r *Report) GroupedItems() []GroupedWorkItem {
+	var out []GroupedWorkItem
+	idx := map[string]int{}
+	for _, it := range r.Items {
+		key := string(it.Severity) + "\x00" + it.Category + "\x00" + it.Message
+		if i, ok := idx[key]; ok {
+			out[i].Count++
+			if it.Line > 0 && (it.Line < out[i].FirstLine || out[i].FirstLine == 0) {
+				out[i].FirstLine = it.Line
+			}
+			if it.Line > out[i].LastLine {
+				out[i].LastLine = it.Line
+			}
+			continue
+		}
+		idx[key] = len(out)
+		out = append(out, GroupedWorkItem{
+			Severity:  it.Severity,
+			Category:  it.Category,
+			Message:   it.Message,
+			Count:     1,
+			FirstLine: it.Line,
+			LastLine:  it.Line,
+			Snippet:   it.Snippet,
+		})
+	}
+	return out
+}
+
+// TopCategories returns the n most frequent work-item categories by count,
+// for the report's rollup.
+func (r *Report) TopCategories(n int) []CategoryCount {
+	m := map[string]*CategoryCount{}
+	for _, it := range r.Items {
+		cc := m[it.Category]
+		if cc == nil {
+			cc = &CategoryCount{Category: it.Category, Severity: it.Severity}
+			m[it.Category] = cc
+		}
+		cc.Count++
+		// Keep the highest-severity severity seen (banned > todo > approx).
+		if weight(it.Severity) > weight(cc.Severity) {
+			cc.Severity = it.Severity
+		}
+	}
+	all := make([]CategoryCount, 0, len(m))
+	for _, cc := range m {
+		all = append(all, *cc)
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].Count > all[j].Count })
+	if len(all) > n {
+		all = all[:n]
+	}
+	return all
+}
+
+// weight returns the gap weight for a severity (todo 3, banned 10, else 1).
+func weight(s Severity) int {
+	switch s {
+	case SevBanned:
+		return 10
+	case SevTodo:
+		return 3
+	default:
+		return 1
+	}
+}
+
 // Score sums the LLM-effort weights of all work items.
 func (r *Report) Score() int {
 	s := 0
@@ -81,15 +171,21 @@ func (r *Report) BySeverity() map[Severity]int {
 
 // Manifest renders the work items as a Go comment block suitable for
 // embedding at the top of the generated file, so the LLM gets its worklist
-// next to the code.
+// next to the code. Identical items are collapsed with a count and line
+// range, so a 50k-item file stays readable.
 func (r *Report) Manifest() string {
-	if len(r.Items) == 0 && len(r.FatalErrors) == 0 {
+	grouped := r.GroupedItems()
+	if len(grouped) == 0 && len(r.FatalErrors) == 0 {
 		return ""
 	}
 	var b strings.Builder
 	b.WriteString("// ts2go post-work manifest (LLM TODO list):\n")
-	for _, it := range r.Items {
-		fmt.Fprintf(&b, "//   [%s] %s:%d %s", it.Severity, baseName(r.Input), it.Line, it.Message)
+	for _, it := range grouped {
+		loc := fmt.Sprintf("%s:%d", baseName(r.Input), it.FirstLine)
+		if it.FirstLine != it.LastLine {
+			loc = fmt.Sprintf("%s:%d-%d", baseName(r.Input), it.FirstLine, it.LastLine)
+		}
+		fmt.Fprintf(&b, "//   [%s] %s x%d %s", it.Severity, loc, it.Count, it.Message)
 		if it.Snippet != "" {
 			b.WriteString("  (" + it.Snippet + ")")
 		}
@@ -120,8 +216,9 @@ func (r *Report) String() string {
 	fmt.Fprintf(&b, "  Complexity:     %s (score %d)\n", r.Complexity(), r.Score())
 
 	if len(r.Items) > 0 {
-		b.WriteString("\n  Work items (grouped by line):\n")
-		renderItems(&b, r.Items, "    ")
+		renderCategoryRollup(&b, r.TopCategories(5))
+		b.WriteString("\n  Work items (grouped; line ranges, x=count):\n")
+		renderItems(&b, r.GroupedItems(), "    ")
 	}
 	renderCompileErrors(&b, r.CompileErrors, "    ")
 	if len(r.FatalErrors) > 0 {
@@ -153,10 +250,11 @@ func (r *Report) stringPackage() string {
 	fmt.Fprintf(&b, "  Complexity:     %s (score %d)\n", r.Complexity(), r.Score())
 	for _, f := range r.Files {
 		b.WriteString("\n  --- " + f.Input + " ---\n")
-		fmt.Fprintf(&b, "    %d lines, %d declarations, %d work items\n",
-			f.TSLines, f.DeclCount, len(f.Items))
+		fmt.Fprintf(&b, "    %d lines, %d declarations, %d work items (%d distinct)\n",
+			f.TSLines, f.DeclCount, len(f.Items), len(f.GroupedItems()))
 		if len(f.Items) > 0 {
-			renderItems(&b, f.Items, "      ")
+			renderCategoryRollup(&b, f.TopCategories(5))
+			renderItems(&b, f.GroupedItems(), "      ")
 		}
 		renderCompileErrors(&b, f.CompileErrors, "      ")
 		if len(f.FatalErrors) > 0 {
@@ -167,6 +265,39 @@ func (r *Report) stringPackage() string {
 	}
 	renderCompileErrors(&b, r.CompileErrors, "  ")
 	return b.String()
+}
+
+// renderCategoryRollup prints the top categories by count, e.g.
+// "  Top gaps: module (3,024) · dynamic (2,111) · import (950)".
+func renderCategoryRollup(b *strings.Builder, cats []CategoryCount) {
+	if len(cats) == 0 {
+		return
+	}
+	var parts []string
+	for _, c := range cats {
+		parts = append(parts, fmt.Sprintf("%s (%d)", c.Category, c.Count))
+	}
+	b.WriteString("  Top gaps: " + strings.Join(parts, " · ") + "\n")
+}
+
+// renderItems writes grouped work items sorted by first TS line.
+func renderItems(b *strings.Builder, items []GroupedWorkItem, indent string) {
+	sorted := append([]GroupedWorkItem(nil), items...)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].FirstLine < sorted[j].FirstLine })
+	for _, it := range sorted {
+		line := "-"
+		if it.FirstLine > 0 {
+			line = fmt.Sprint(it.FirstLine)
+			if it.FirstLine != it.LastLine {
+				line = fmt.Sprintf("%d-%d", it.FirstLine, it.LastLine)
+			}
+		}
+		fmt.Fprintf(b, "%s%5s  [%-6s] x%-4d %-12s %s", indent, line, it.Severity, it.Count, it.Category, it.Message)
+		if it.Snippet != "" {
+			fmt.Fprintf(b, "  | %s", it.Snippet)
+		}
+		b.WriteString("\n")
+	}
 }
 
 // renderCompileErrors writes go build findings, when any.
@@ -184,23 +315,6 @@ func renderCompileErrors(b *strings.Builder, errs []CompileError, indent string)
 			}
 		}
 		fmt.Fprintf(b, "%s  %s: %s\n", indent, loc, e.Message)
-	}
-}
-
-// renderItems writes work items sorted by TS line.
-func renderItems(b *strings.Builder, items []WorkItem, indent string) {
-	sorted := append([]WorkItem(nil), items...)
-	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Line < sorted[j].Line })
-	for _, it := range sorted {
-		line := "-"
-		if it.Line > 0 {
-			line = fmt.Sprint(it.Line)
-		}
-		fmt.Fprintf(b, "%s%5s  [%-6s] %-12s %s", indent, line, it.Severity, it.Category, it.Message)
-		if it.Snippet != "" {
-			fmt.Fprintf(b, "  | %s", it.Snippet)
-		}
-		b.WriteString("\n")
 	}
 }
 
