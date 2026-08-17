@@ -1154,7 +1154,6 @@ func (tr *transpiler) convertReturnExpr(e tsmorph.Node, s string) string {
 
 func (tr *transpiler) prefixUnary(n tsmorph.Node) (string, error) {
 	pu, _ := n.AsPrefixUnaryExpression()
-	op := pu.OperatorText()
 	operand, ok := pu.Operand()
 	if !ok {
 		return "", fmt.Errorf("unary without operand")
@@ -1163,9 +1162,20 @@ func (tr *transpiler) prefixUnary(n tsmorph.Node) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// OperatorText() is unreliable (identifier-as-token); slice the source
+	// between the expression start and its operand.
+	op := ""
+	if text := tr.sf.Text(); n.Pos() >= 0 && operand.Pos() <= len(text) && n.Pos() <= operand.Pos() {
+		op = strings.TrimSpace(text[n.Pos():operand.Pos()])
+	}
 	switch op {
 	case "!":
-		return "!" + os, nil
+		// Negating a non-boolean needs JS truthiness (falsy: "", 0, null, NaN).
+		if operand.Type().IsBoolean() || operand.Type().IsBooleanLiteral() {
+			return "!" + os, nil
+		}
+		tr.usedShim = true
+		return "!jsrtTruthy(" + os + ")", nil
 	case "-":
 		return "-" + os, nil
 	case "+":

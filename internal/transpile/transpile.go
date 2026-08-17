@@ -411,6 +411,17 @@ func (tr *transpiler) goUnionType(n tsmorph.Node) (string, error) {
 	}
 	base := tr.cleanCheckerType(nonNull[0])
 	if len(nonNull) > 1 {
+		// A union of string literals (`"a" | "b"`) collapses to `string`.
+		allStr := true
+		for _, m := range nonNull {
+			if !strings.HasPrefix(m, `"`) || !strings.HasSuffix(m, `"`) {
+				allStr = false
+				break
+			}
+		}
+		if allStr {
+			return "string", nil
+		}
 		return "any /* union: " + strings.Join(nonNull, " | ") + " */", nil
 	}
 	if typ.IsNullable() {
@@ -511,6 +522,11 @@ func (tr *transpiler) cleanCheckerType(s string) string {
 	// Object literal types: `{ x: number; y: number }` → anonymous struct.
 	if strings.HasPrefix(s, "{") {
 		return tr.objectTypeToStruct(s)
+	}
+	// String-literal types (inferred return types render as `"a" | "b"`)
+	// collapse to `string`.
+	if strings.Contains(s, `"`) {
+		return "string"
 	}
 	// `T | null` handled by caller; strip trailing ` | undefined`.
 	s = strings.TrimSuffix(s, " | undefined")

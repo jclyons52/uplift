@@ -17,6 +17,25 @@ type jsrtPromise struct {
 	err  error
 }
 
+// jsrtTruthy reports JS truthiness: everything is truthy except false, 0,
+// "", null, undefined, and NaN.
+func jsrtTruthy(v any) bool {
+	switch x := v.(type) {
+	case nil:
+		return false
+	case bool:
+		return x
+	case string:
+		return x != ""
+	case float64:
+		return x != 0 && x == x // x == x is false iff NaN
+	case int:
+		return x != 0
+	default:
+		return true
+	}
+}
+
 func jsrtResolve(v any) *jsrtPromise {
 	p := &jsrtPromise{wait: make(chan struct{})}
 	p.val = v
