@@ -117,3 +117,38 @@ function sum(...nums) {
 		t.Errorf("rest param should be typed as array:\n%s", out)
 	}
 }
+
+func TestLiftTypedefObject(t *testing.T) {
+	out := lift(t, `/**
+ * @typedef {object} Foo
+ * @property {string} name
+ * @property {number} age
+ */
+const foo = null;
+`)
+	if !strings.Contains(out, "type Foo = {") || !strings.Contains(out, "name: string;") || !strings.Contains(out, "age: number;") {
+		t.Errorf("object typedef should lift to a TS object type:\n%s", out)
+	}
+}
+
+func TestLiftTypedefPrimitive(t *testing.T) {
+	out := lift(t, `/**
+ * @typedef {number[]} NumList
+ */
+const nl = null;
+`)
+	if !strings.Contains(out, "type NumList = number[];") {
+		t.Errorf("primitive typedef should lift:\n%s", out)
+	}
+}
+
+func TestLiftTypedefInline(t *testing.T) {
+	out := lift(t, `/**
+ * @typedef {{id: number, label: string}} Row
+ */
+const row = null;
+`)
+	if !strings.Contains(out, "type Row = {id: number, label: string};") {
+		t.Errorf("inline object typedef should lift with balanced braces:\n%s", out)
+	}
+}

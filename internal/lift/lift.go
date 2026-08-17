@@ -10,6 +10,7 @@
 package lift
 
 import (
+	"regexp"
 	"sort"
 	"strings"
 
@@ -24,18 +25,145 @@ type insertion struct {
 }
 
 // Lift returns the JS source with TS type annotations inserted on every
-// parameter and return value the checker resolves to a concrete type.
+// parameter and return value the checker resolves to a concrete type, plus
+// TS type aliases for any JSDoc @typedef definitions.
 func Lift(p *tsmorph.Project, sf *tsmorph.SourceFile) (string, error) {
 	l := &lifter{src: sf.Text()}
+	l.collectTypedefs(sf)
 	for _, stmt := range sf.Statements() {
 		l.walk(stmt)
 	}
-	return l.render(sf.Text()), nil
+	out := l.render(sf.Text())
+	if len(l.typedefs) > 0 {
+		var lines []string
+		for _, td := range l.typedefs {
+			lines = append(lines, "type "+td.name+" = "+td.typeText+";")
+		}
+		out += "\n// lifted from JSDoc @typedef\n" + strings.Join(lines, "\n") + "\n"
+	}
+	return out, nil
 }
 
+// typedefInfo is one `@typedef` lifted to a TS `type` alias.
+type typedefInfo struct{ name, typeText string }
+
+// collectTypedefs finds JSDoc typedef statements in the file and parses their
+// type + name (and @property members) into TS type aliases.
+func (l *lifter) collectTypedefs(sf *tsmorph.SourceFile) {
+	for _, stmt := range sf.Statements() {
+		if !hasTypedefTag(stmt) {
+			continue
+		}
+		td, ok := parseTypedef(stmt.Text())
+		if !ok {
+			continue
+		}
+		l.typedefs = append(l.typedefs, td)
+	}
+}
+
+// hasTypedefTag reports whether a statement's leading JSDoc carries a
+// `@typedef` tag.
+func hasTypedefTag(stmt tsmorph.Node) bool {
+	for _, d := range stmt.GetJsDocs() {
+		for _, c := range d.Node.Children() {
+			an := c.ASTNode()
+			if an != nil && an.Kind.String() == "KindJSDocTypedefTag" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// parseTypedef turns a `@typedef` comment statement into a TS type alias.
+// Forms handled: `@typedef {object} Foo` + `@property {T} name` members,
+// `@typedef {T} Foo` (primitive/array), `@typedef {{...}} Foo` (inline).
+func parseTypedef(text string) (typedefInfo, bool) {
+	// Collapse comment decorations: /** * ... */
+	s := stripStars(text)
+	const tag = "@typedef"
+	i := strings.Index(s, tag)
+	if i < 0 {
+		return typedefInfo{}, false
+	}
+	s = s[i+len(tag):] // after "@typedef"
+	ty, rest := takeBracedType(s)
+	if ty == "" {
+		return typedefInfo{}, false
+	}
+	name := strings.Fields(rest)
+	if len(name) == 0 {
+		return typedefInfo{}, false
+	}
+	alias := name[0]
+
+	// Collect @property members from the rest of the comment.
+	var props [][2]string
+	if strings.Contains(rest, "@property") || strings.Contains(rest, "@prop") {
+		for _, m := range propRe.FindAllStringSubmatch(rest, -1) {
+			props = append(props, [2]string{m[2], m[1]})
+		}
+	}
+
+	typeText := ty
+	if (ty == "object" || ty == "Object") && len(props) > 0 {
+		typeText = "{\n" + joinProps(props, "  ") + "\n}"
+	}
+	if ty == "" && len(props) == 0 {
+		return typedefInfo{}, false
+	}
+	return typedefInfo{name: alias, typeText: typeText}, true
+}
+
+// stripStars removes JSDoc comment decoration and line continuations so the
+// body is a single spaced string.
+func stripStars(s string) string {
+	s = strings.ReplaceAll(s, "/*", " ")
+	s = strings.ReplaceAll(s, "*/", " ")
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "*", " ")
+	return strings.Join(strings.Fields(s), " ")
+}
+
+// takeBracedType returns the first `{ ... }` (nesting-aware) type expression
+// and the text after it.
+func takeBracedType(s string) (ty, rest string) {
+	o := strings.Index(s, "{")
+	if o < 0 {
+		return "", s
+	}
+	depth := 0
+	for i := o; i < len(s); i++ {
+		switch s[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return strings.TrimSpace(s[o+1 : i]), strings.TrimSpace(s[i+1:])
+			}
+		}
+	}
+	return strings.TrimSpace(s[o+1:]), ""
+}
+
+// joinProps renders @property members as TS object-literal fields.
+func joinProps(props [][2]string, indent string) string {
+	parts := make([]string, 0, len(props))
+	for _, p := range props {
+		parts = append(parts, indent+p[0]+": "+p[1]+";")
+	}
+	return strings.Join(parts, "\n")
+}
+
+// propRe matches `@property {Type} name` / `@prop {Type} [name]`.
+var propRe = regexp.MustCompile(`@(?:property|prop)\s*\{([^}]*)\}\s*\[?([A-Za-z_$][\w$]*)\]?`)
+
 type lifter struct {
-	src    string
-	insert []insertion
+	src      string
+	insert   []insertion
+	typedefs []typedefInfo
 }
 
 // walk descends the tree, annotating every function-like node it finds
