@@ -1188,44 +1188,82 @@ func (tr *transpiler) typedObjectLiteral(n tsmorph.Node, typ string) (string, er
 	ol, _ := n.AsObjectLiteralExpression()
 	var parts []string
 	for _, p := range ol.GetProperties() {
-		name := p.Name()
-		init, ok := p.GetInitializer()
-		if !ok {
-			continue
-		}
-		s, err := tr.emitExpr(init)
+		key, val, err := tr.objectLiteralElement(p)
 		if err != nil {
 			return "", err
 		}
-		parts = append(parts, exportField(name)+": "+s)
+		if key == "" {
+			continue
+		}
+		parts = append(parts, key+": "+val)
 	}
 	return typ + "{" + strings.Join(parts, ", ") + "}", nil
 }
 
 func (tr *transpiler) objectLiteral(n tsmorph.Node) (string, error) {
 	ol, _ := n.AsObjectLiteralExpression()
-	var parts []string
+	var keys, parts []string
 	for _, p := range ol.GetProperties() {
-		name := p.Name()
-		init, ok := p.GetInitializer()
-		if !ok {
-			continue
-		}
-		s, err := tr.emitExpr(init)
+		key, val, err := tr.objectLiteralElement(p)
 		if err != nil {
 			return "", err
 		}
-		parts = append(parts, exportField(name)+": "+s)
+		if key == "" {
+			continue
+		}
+		keys = append(keys, key+" any")
+		parts = append(parts, key+": "+val)
 	}
 	// When the checker resolves this literal to a named type, emit a typed
 	// struct literal; otherwise fall back to an anonymous struct.
 	typ := n.Type()
 	if sym, ok := typ.Symbol(); ok {
-		if n := sym.Name(); n != "" && !strings.HasPrefix(n, "__") {
-			return n + "{" + strings.Join(parts, ", ") + "}", nil
+		if name := sym.Name(); name != "" && !strings.HasPrefix(name, "__") {
+			return name + "{" + strings.Join(parts, ", ") + "}", nil
 		}
 	}
-	return "struct{ " + strings.Join(parts, ", ") + " }{}", nil
+	if len(parts) == 0 {
+		// All elements were gaps (spread, methods, ...): an empty struct
+		// literal is the compiling stand-in.
+		return "struct{}{}", nil
+	}
+	return "struct{ " + strings.Join(keys, "; ") + " }{ " + strings.Join(parts, ", ") + " }", nil
+}
+
+// objectLiteralElement renders one element of an object literal as a Go
+// keyed-field pair. The AST kind is checked before touching ts-go-morph
+// accessors: Node.Initializer() panics on elements that aren't plain
+// `key: value` assignments, so shorthand, spread, methods, and accessors
+// must never reach it. Kinds without a Go struct-literal equivalent record a
+// gap and return key "" (the element is skipped).
+func (tr *transpiler) objectLiteralElement(p tsmorph.Node) (key, value string, err error) {
+	node := p.ASTNode()
+	switch {
+	case ast.IsShorthandPropertyAssignment(node):
+		// TS { a } means { a: a }.
+		name := p.Name()
+		return exportField(name), name, nil
+	case ast.IsSpreadAssignment(node):
+		tr.recordGap(SevTodo, "expression", p, "object spread has no Go struct-literal equivalent")
+		return "", "", nil
+	case ast.IsGetAccessorDeclaration(node), ast.IsSetAccessorDeclaration(node), ast.IsMethodDeclaration(node):
+		tr.recordGap(SevTodo, "expression", p, "object-literal %s has no Go struct-literal equivalent — restructure", node.Kind.String())
+		return "", "", nil
+	case ast.IsPropertyAssignment(node):
+		name := p.Name()
+		init, ok := p.GetInitializer()
+		if !ok {
+			return "", "", nil
+		}
+		s, err := tr.emitExpr(init)
+		if err != nil {
+			return "", "", err
+		}
+		return exportField(name), s, nil
+	default:
+		tr.recordGap(SevTodo, "expression", p, "unhandled object-literal element %s", node.Kind.String())
+		return "", "", nil
+	}
 }
 
 func (tr *transpiler) functionLiteral(n tsmorph.Node) (string, error) {

@@ -632,7 +632,13 @@ func (tr *transpiler) emitVariableStatement(n tsmorph.Node) error {
 				// pick Go's int and break arithmetic with other numbers.
 				tr.out.line("var " + name + " float64 = " + expr)
 			default:
-				tr.out.line(name + " := " + expr)
+				// `:=` is illegal at package scope; top-level consts without
+				// an explicit type become `var x = e` instead.
+				if len(tr.retStack) == 0 {
+					tr.out.line("var " + name + " = " + expr)
+				} else {
+					tr.out.line(name + " := " + expr)
+				}
 			}
 			tr.markUsedIfUnused(name, n)
 		} else if typ != "" {
