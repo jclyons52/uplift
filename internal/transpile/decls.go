@@ -664,6 +664,15 @@ func (tr *transpiler) emitVariableStatement(n tsmorph.Node) error {
 // preferred over the checker's text so aliases (Money, uint8) survive.
 func (tr *transpiler) signatureFromChildren(n tsmorph.Node) (params, ret string, err error) {
 	var ps []string
+	// Checker call signature (for contextual/JS types of unannotated params
+	// and the return type) — may be empty for non-function nodes.
+	var sigCheck []string // checker-rendered param types, aligned by index
+	if sigs := n.Type().CallSignatures(); len(sigs) > 0 {
+		for _, p := range sigs[0].Parameters() {
+			sigCheck = append(sigCheck, p.Type.Text())
+		}
+	}
+	pi := 0
 	for _, c := range n.Children() {
 		if !ast.IsParameterDeclaration(c.ASTNode()) {
 			continue
@@ -677,9 +686,18 @@ func (tr *transpiler) signatureFromChildren(n tsmorph.Node) (params, ret string,
 				return "", "", err
 			}
 			typ = t
+		} else if pi < len(sigCheck) {
+			// No annotation: the checker may still know the type from the
+			// contextual/call-site type — that's a tightenable site (and the
+			// JSDoc case for JS input).
+			typ = "any"
+			if ct := sigCheck[pi]; ct != "" && notAnyLike(ct) {
+				tr.tightenable("param", c, tr.cleanCheckerType(ct), "any")
+			}
 		} else {
 			typ = "any"
 		}
+		pi++
 		ps = append(ps, name+" "+typ)
 	}
 	ret = ""

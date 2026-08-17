@@ -700,6 +700,12 @@ func (tr *transpiler) propertyAccess(n tsmorph.Node) (string, error) {
 	propS := prop.Text()
 	// Property access on `any` cannot compile in Go — flag for the LLM.
 	if t := obj.Type(); !t.IsUnknown() && t.IsAny() {
+		// The access itself often still resolves to a concrete type: that's
+		// a tightenable site — annotate the object's source type and the
+		// whole access stops being dynamic.
+		if at := n.Type(); !at.IsUnknown() && !at.IsAny() {
+			tr.tightenable("dynamic", n, at.Text(), "any")
+		}
 		tr.recordGap(SevTodo, "dynamic", n, "dynamic property access %s.%s on any", objS, propS)
 		return placeholderExpr(objS + "." + propS), nil
 	}
@@ -744,6 +750,9 @@ func (tr *transpiler) elementAccess(n tsmorph.Node) (string, error) {
 	}
 	// Indexing an `any` cannot compile in Go — flag for the LLM.
 	if t := obj.Type(); !t.IsUnknown() && t.IsAny() {
+		if at := n.Type(); !at.IsUnknown() && !at.IsAny() {
+			tr.tightenable("dynamic", n, at.Text(), "any")
+		}
 		tr.recordGap(SevTodo, "dynamic", n, "dynamic element access %s[%s] on any", objS, idxS)
 		return placeholderExpr(objS + "[" + idxS + "]"), nil
 	}

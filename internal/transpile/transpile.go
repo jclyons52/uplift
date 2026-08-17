@@ -25,6 +25,9 @@ type transpiler struct {
 	// items collects LLM work items (gaps) so the output never aborts on
 	// unsupported constructs; each gets a placeholder + report entry.
 	items []WorkItem
+	// audit collects type-tightening sites: places emitted as any/dynamic
+	// where the checker resolved a concrete type. See TightenSite.
+	audit []TightenSite
 	// fatal collects internal errors that prevented (parts of) emission.
 	fatal []string
 	// retStack tracks the enclosing function's Go return type so return
@@ -69,6 +72,19 @@ type aliasInfo struct {
 	unionValues []string
 }
 
+// TightenSite is one place the transpiler emitted `any` (or a dynamic gap)
+// where the TypeScript checker resolved a concrete type. These are the
+// "tighten me" worklist: annotating the source (or the JSDoc, for JS input)
+// at this site gives ts2go the type it needs. The same checker-typing is the
+// basis of the JS→TS lifting path.
+type TightenSite struct {
+	Category    string // dynamic, param, return, var
+	Line        int
+	CheckerType string // what the checker resolved (e.g. "SymbolFlags")
+	Emitted     string // what ts2go emitted (usually "any")
+	Snippet     string
+}
+
 // NewTranspiler returns a transpiler bound to a source file.
 func NewTranspiler(p *tsmorph.Project, sf *tsmorph.SourceFile) *Transpiler {
 	return &Transpiler{tr: &transpiler{p: p, sf: sf, out: newGoWriter(), aliases: map[string]aliasInfo{}, used: map[string]bool{}, emitShim: true, pkgName: "main"}}
@@ -102,6 +118,34 @@ func (t *Transpiler) SetPackageName(name string) { t.tr.pkgName = name }
 // UsedShim reports whether the emitted code references the jsrt async shim.
 // Valid after Transpile.
 func (t *Transpiler) UsedShim() bool { return t.tr.usedShim }
+
+// tightenable records a type-tightening site: the checker resolved a
+// concrete type for n (or its node), but the emitter degraded (emitted `any`
+// or a dynamic placeholder). Recording it gives the type-audit report the
+// "annotate here to tighten" worklist.
+func (tr *transpiler) tightenable(category string, n tsmorph.Node, checkerType, emitted string) {
+	if checkerType == "" || checkerType == "any" || checkerType == "unknown" {
+		return
+	}
+	tr.audit = append(tr.audit, TightenSite{
+		Category:    category,
+		Line:        tr.lineOf(n),
+		CheckerType: checkerType,
+		Emitted:     emitted,
+		Snippet:     oneLine(snippetLong(n)),
+	})
+}
+
+// notAnyLike reports whether a checker-rendered type text is a real concrete
+// type rather than any/unknown/never-ish — used to decide if a site is a
+// genuine tightening opportunity.
+func notAnyLike(t string) bool {
+	switch strings.TrimSpace(t) {
+	case "any", "unknown", "never", "{}", "undefined", "null", "":
+		return false
+	}
+	return !strings.HasPrefix(strings.TrimSpace(t), "any")
+}
 
 // recoverToError converts a panic into an error, for use in a deferred
 // call: `defer recoverToError(&err)`. The resilience contract is panic-proof
@@ -205,6 +249,7 @@ func (tr *transpiler) buildReport(ok bool) *Report {
 		Items:       append([]WorkItem(nil), tr.items...),
 		EmittedOK:   ok && len(tr.fatal) == 0,
 		FatalErrors: oneLineAll(tr.fatal),
+		Audit:       append([]TightenSite(nil), tr.audit...),
 	}
 	return r
 }

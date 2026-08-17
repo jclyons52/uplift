@@ -35,6 +35,7 @@ func main() {
 	pkgFlag := fs.String("package", "", "Go package name for multi-file output (default: output directory base name)")
 	dryRun := fs.Bool("dry-run", false, "assess only: transpile in memory, print the post-work report, write nothing")
 	verify := fs.Bool("verify", true, "build the generated Go in a temp module and report compile errors as work items")
+	typeAudit := fs.Bool("type-audit", false, "also print the type-tightening worklist: sites where the checker resolves a concrete type but ts2go emitted any/dynamic")
 	reportFlag := fs.String("report", "", "write the full post-work report to this file (markdown)")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: ts2go [flags] <file.ts|dir>...\n\nconverts TypeScript files to Go (one Go package per directory).\n\nflags:\n")
@@ -53,15 +54,15 @@ func main() {
 	// package path.
 	if len(inputs) == 1 {
 		if st, err := os.Stat(inputs[0]); err == nil && !st.IsDir() {
-			runSingle(inputs[0], *outFlag, *dryRun, *verify, *reportFlag)
+			runSingle(inputs[0], *outFlag, *dryRun, *verify, *typeAudit, *reportFlag)
 			return
 		}
 	}
-	runPackage(inputs, *outFlag, *pkgFlag, *dryRun, *verify, *reportFlag)
+	runPackage(inputs, *outFlag, *pkgFlag, *dryRun, *verify, *typeAudit, *reportFlag)
 }
 
 // runSingle transpiles one file to one .go file (v0 behaviour).
-func runSingle(input, outFlag string, dryRun, verify bool, reportFlag string) {
+func runSingle(input, outFlag string, dryRun, verify, typeAudit bool, reportFlag string) {
 	if err := validateInput(input); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
@@ -101,6 +102,10 @@ func runSingle(input, outFlag string, dryRun, verify bool, reportFlag string) {
 
 	if dryRun {
 		fmt.Print(file.Report.String())
+		if typeAudit {
+			fmt.Println()
+			fmt.Print(file.Report.AuditString())
+		}
 		if reportFlag != "" {
 			writeReport(reportFlag, file.Report.String())
 		}
@@ -123,6 +128,10 @@ func runSingle(input, outFlag string, dryRun, verify bool, reportFlag string) {
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprint(os.Stderr, file.Report.String())
 	}
+	if typeAudit {
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprint(os.Stderr, file.Report.AuditString())
+	}
 	if reportFlag != "" {
 		writeReport(reportFlag, file.Report.String())
 	}
@@ -132,7 +141,7 @@ func runSingle(input, outFlag string, dryRun, verify bool, reportFlag string) {
 // Go package: one .go file per input, imports between inputs dropped,
 // external imports reported as work items, jsrt.go emitted once if any file
 // uses async.
-func runPackage(inputs []string, outFlag, pkgFlag string, dryRun, verify bool, reportFlag string) {
+func runPackage(inputs []string, outFlag, pkgFlag string, dryRun, verify, typeAudit bool, reportFlag string) {
 	files, err := collectInputs(inputs)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
@@ -193,6 +202,10 @@ func runPackage(inputs []string, outFlag, pkgFlag string, dryRun, verify bool, r
 
 	if dryRun {
 		fmt.Print(res.Report.String())
+		if typeAudit {
+			fmt.Println()
+			fmt.Print(res.Report.AuditString())
+		}
 		if reportFlag != "" {
 			writeReport(reportFlag, res.Report.String())
 		}
@@ -228,6 +241,10 @@ func runPackage(inputs []string, outFlag, pkgFlag string, dryRun, verify bool, r
 	if items > 0 || len(res.Report.FatalErrors) > 0 {
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprint(os.Stderr, res.Report.String())
+	}
+	if typeAudit {
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprint(os.Stderr, res.Report.AuditString())
 	}
 	if reportFlag != "" {
 		writeReport(reportFlag, res.Report.String())

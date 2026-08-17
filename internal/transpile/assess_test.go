@@ -3,6 +3,8 @@ package transpile
 import (
 	"strings"
 	"testing"
+
+	tsmorph "github.com/jclyons52/ts-go-morph"
 )
 
 // reportWith builds a Report with the given items (callers can also append
@@ -69,5 +71,48 @@ func TestTopCategories(t *testing.T) {
 	}
 	if top[1].Category != "dynamic" && top[1].Category != "banned" {
 		t.Errorf("second category should be dynamic or banned, got %+v", top[1])
+	}
+}
+
+// transpileReport runs the pipeline and returns both the report and source.
+func transpileReport(t *testing.T, src string) *Report {
+	t.Helper()
+	p, err := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sf := p.CreateSourceFile("/a.ts", src)
+	tp := NewTranspiler(p, sf)
+	if _, err := tp.Transpile(); err != nil {
+		t.Fatal(err)
+	}
+	return tp.Report()
+}
+
+// TestTypeAuditFindsTightenableParam: a default-valued param (foo = true)
+// has no annotation, but the checker infers bool — a tightenable site.
+func TestTypeAuditFindsTightenableParam(t *testing.T) {
+	r := transpileReport(t, `function f(foo = true): number { return 1; }`)
+	if len(r.Audit) == 0 {
+		t.Fatal("expected a tighten site for the default-valued param")
+	}
+	if r.Audit[0].Category != "param" {
+		t.Errorf("category should be param, got %q", r.Audit[0].Category)
+	}
+	if r.Audit[0].CheckerType != "bool" {
+		t.Errorf("checker should resolve the param to bool, got %q (site %+v)", r.Audit[0].CheckerType, r.Audit[0])
+	}
+	if !strings.Contains(r.AuditString(), "tightenable") {
+		t.Errorf("AuditString should render a header")
+	}
+}
+
+// TestTypeAuditCleanWhenTyped: fully annotated code has no tighten sites.
+func TestTypeAuditCleanWhenTyped(t *testing.T) {
+	r := transpileReport(t, `function f(foo: boolean): number { return 1; }`)
+	for _, s := range r.Audit {
+		if s.Category == "param" {
+			t.Errorf("annotated param should not be a tighten site: %+v", s)
+		}
 	}
 }

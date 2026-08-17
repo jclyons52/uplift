@@ -31,6 +31,10 @@ type Report struct {
 	// file (fed back by the driver loop).
 	CompileErrors []CompileError
 
+	// Audit lists type-tightening sites: emitted as any/dynamic where the
+	// checker resolved a concrete type (see TightenSite).
+	Audit []TightenSite
+
 	// Files, when set, holds the per-file reports of a multi-file package;
 	// the fields above then describe the whole package (Items stays empty,
 	// Score/Complexity/BySeverity aggregate across the files).
@@ -265,6 +269,71 @@ func (r *Report) stringPackage() string {
 	}
 	renderCompileErrors(&b, r.CompileErrors, "  ")
 	return b.String()
+}
+
+// AuditString renders the type-tightening worklist: the sites where the
+// checker resolved a concrete type but ts2go emitted any/dynamic, grouped by
+// category+checker-type. This is what `-type-audit` prints — annotate these
+// source sites to tighten the output.
+func (r *Report) AuditString() string {
+	count := 0
+	for _, f := range r.Files {
+		count += len(f.Audit)
+	}
+	count += len(r.Audit)
+	var b strings.Builder
+	fmt.Fprintf(&b, "ts2go type audit: %d tightenable sites (checker knows more than emitted)\n", count)
+	if count == 0 {
+		b.WriteString("  none — the checker already resolves to any at every degraded site\n")
+		return b.String()
+	}
+	// Aggregate per file (single-file mode: the report itself).
+	var pass []*Report
+	if len(r.Files) == 0 {
+		pass = []*Report{r}
+	} else {
+		pass = r.Files
+	}
+	for _, f := range pass {
+		if len(f.Audit) == 0 {
+			continue
+		}
+		b.WriteString("\n  --- " + f.Input + " (" + fmt.Sprint(len(f.Audit)) + " sites) ---\n")
+		renderAudit(&b, f.Audit)
+	}
+	renderAudit(&b, r.Audit)
+	return b.String()
+}
+
+// renderAudit writes tighten sites grouped by category + checker type.
+func renderAudit(b *strings.Builder, sites []TightenSite) {
+	type gkey struct{ cat, t string }
+	m := map[gkey]*GroupedWorkItem{}
+	order := []gkey{}
+	for _, s := range sites {
+		k := gkey{s.Category, s.CheckerType}
+		g, ok := m[k]
+		if !ok {
+			g = &GroupedWorkItem{Category: s.Category, Severity: SevTodo, FirstLine: s.Line, LastLine: s.Line, Count: 1, Message: "checker resolves to " + s.CheckerType, Snippet: s.Snippet}
+			m[k] = g
+			order = append(order, k)
+		} else {
+			g.Count++
+			if s.Line > 0 && (s.Line < g.FirstLine || g.FirstLine == 0) {
+				g.FirstLine = s.Line
+			}
+			if s.Line > g.LastLine {
+				g.LastLine = s.Line
+			}
+		}
+	}
+	// Sort groups by descending count.
+	sort.Slice(order, func(i, j int) bool { return m[order[i]].Count > m[order[j]].Count })
+	var gi []GroupedWorkItem
+	for _, k := range order {
+		gi = append(gi, *m[k])
+	}
+	renderItems(b, gi, "    ")
 }
 
 // renderCategoryRollup prints the top categories by count, e.g.
