@@ -34,9 +34,10 @@ func main() {
 	outFlag := fs.String("o", "", "output file (single input) or directory (multiple inputs); default: next to the input")
 	pkgFlag := fs.String("package", "", "Go package name for multi-file output (default: output directory base name)")
 	dryRun := fs.Bool("dry-run", false, "assess only: transpile in memory, print the post-work report, write nothing")
+	verify := fs.Bool("verify", true, "build the generated Go in a temp module and report compile errors as work items")
 	reportFlag := fs.String("report", "", "write the full post-work report to this file (markdown)")
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: ts2go [flags] <file.ts|dir>...\n\nconverts TypeScript files to Go (one Go package).\n\nflags:\n")
+		fmt.Fprintf(os.Stderr, "usage: ts2go [flags] <file.ts|dir>...\n\nconverts TypeScript files to Go (one Go package per directory).\n\nflags:\n")
 		fs.PrintDefaults()
 	}
 	fs.Parse(os.Args[1:])
@@ -52,15 +53,15 @@ func main() {
 	// package path.
 	if len(inputs) == 1 {
 		if st, err := os.Stat(inputs[0]); err == nil && !st.IsDir() {
-			runSingle(inputs[0], *outFlag, *dryRun, *reportFlag)
+			runSingle(inputs[0], *outFlag, *dryRun, *verify, *reportFlag)
 			return
 		}
 	}
-	runPackage(inputs, *outFlag, *pkgFlag, *dryRun, *reportFlag)
+	runPackage(inputs, *outFlag, *pkgFlag, *dryRun, *verify, *reportFlag)
 }
 
 // runSingle transpiles one file to one .go file (v0 behaviour).
-func runSingle(input, outFlag string, dryRun bool, reportFlag string) {
+func runSingle(input, outFlag string, dryRun, verify bool, reportFlag string) {
 	p, err := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
@@ -79,23 +80,30 @@ func runSingle(input, outFlag string, dryRun bool, reportFlag string) {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
-	report := t.Report()
+	file := &transpile.FileResult{
+		Name:       strings.TrimSuffix(filepath.Base(input), filepath.Ext(input)) + ".go",
+		Code:       out,
+		Report:     t.Report(),
+		UsesShim:   t.UsedShim(),
+		SourceFile: sf,
+	}
+	if verify {
+		attachCompileErrors([]*transpile.FileResult{file}, verifyBuild([]*transpile.FileResult{file}))
+	}
 
 	if dryRun {
-		fmt.Print(report.String())
+		fmt.Print(file.Report.String())
 		if reportFlag != "" {
-			writeReport(reportFlag, report.String())
+			writeReport(reportFlag, file.Report.String())
 		}
 		return
 	}
 
-	out = gofmt(out)
-
 	outPath := outFlag
 	if outPath == "" {
-		outPath = strings.TrimSuffix(filepath.Base(input), filepath.Ext(input)) + ".go"
+		outPath = file.Name
 	}
-	if err := os.WriteFile(outPath, []byte(out), 0o644); err != nil {
+	if err := os.WriteFile(outPath, []byte(gofmt(file.Code)), 0o644); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
@@ -103,12 +111,12 @@ func runSingle(input, outFlag string, dryRun bool, reportFlag string) {
 
 	// Always surface the assessment summary; the full worklist is in the
 	// generated file's manifest and optionally in -report.
-	if len(report.Items) > 0 || len(report.FatalErrors) > 0 {
+	if len(file.Report.Items) > 0 || len(file.Report.CompileErrors) > 0 || len(file.Report.FatalErrors) > 0 {
 		fmt.Fprintln(os.Stderr)
-		fmt.Fprint(os.Stderr, report.String())
+		fmt.Fprint(os.Stderr, file.Report.String())
 	}
 	if reportFlag != "" {
-		writeReport(reportFlag, report.String())
+		writeReport(reportFlag, file.Report.String())
 	}
 }
 
@@ -116,7 +124,7 @@ func runSingle(input, outFlag string, dryRun bool, reportFlag string) {
 // Go package: one .go file per input, imports between inputs dropped,
 // external imports reported as work items, jsrt.go emitted once if any file
 // uses async.
-func runPackage(inputs []string, outFlag, pkgFlag string, dryRun bool, reportFlag string) {
+func runPackage(inputs []string, outFlag, pkgFlag string, dryRun, verify bool, reportFlag string) {
 	files, err := collectInputs(inputs)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
@@ -161,6 +169,14 @@ func runPackage(inputs []string, outFlag, pkgFlag string, dryRun bool, reportFla
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
+	}
+
+	// Driver loop: build the generated Go in a temp module and feed every
+	// compiler failure back into the per-file reports and the generated
+	// files themselves.
+	if verify {
+		unmatched := attachCompileErrors(res.Files, verifyBuild(res.Files))
+		res.Report.CompileErrors = append(res.Report.CompileErrors, unmatched...)
 	}
 
 	if dryRun {

@@ -19,7 +19,14 @@ ts2go -dry-run src/app.ts     # assess only: complexity report, no output file
 ts2go -report r.txt src/app.ts # also write the full report to r.txt
 ts2go src/                    # multi-file: walk src/, one Go package per directory
 ts2go -o out/ -package mypkg src/  # direct output + root package name
+ts2go -verify=false src/      # skip the go-build feedback step
 ```
+
+Every run (unless `-verify=false`) **builds the generated Go** in a temp
+module and feeds every compiler failure back into the assessment: each
+finding appears under "go build findings" in the report and is appended to
+the offending generated file as a `// ts2go compile finding:` comment. The
+driver loop is closed — transpile, compile, and get the worklist back.
 
 ## Multi-file projects
 

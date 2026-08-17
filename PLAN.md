@@ -94,8 +94,10 @@ each becomes a placeholder + `banned` work item (redesign required).
 ## Architecture
 
 ```
-cmd/ts2go/main.go          CLI: -o, -dry-run, -report, -package; single file
-                           or directory/multi-file package mode
+cmd/ts2go/main.go          CLI: -o, -dry-run, -report, -package, -verify;
+                           single file or directory/multi-file package mode
+cmd/ts2go/verify.go        Driver loop: build generated Go in a temp module,
+                           parse `go build` findings, attach per-file
 internal/transpile/
   transpile.go             Transpiler, goType, alias fixpoint, string-union
                            aliases, declared-name pre-pass
@@ -151,8 +153,12 @@ native-concurrency pass. Next steps toward the north star:
    imports as work items, once-per-package jsrt.go, aggregate per-file
    report. Remaining: cross-package imports still need manual Go import
    wiring (that's the LLM's work item).
-2. Driver loop: transpile → gofmt → `go build`, feeding compile errors back
-   as work items (closes the loop for the LLM)
+2. ~~Driver loop~~ — **done (v0.3)**: `-verify` builds the generated Go in a
+   temp module (package main rewritten, go.mod with the installed toolchain
+   version) and feeds every `go build` failure back as a per-file compile
+   finding — in the report and appended to the generated file itself.
+   Remaining: wire-up of the loop into an agent (LLM reads findings, fixes,
+   re-runs); tsconfig `paths`/`baseUrl` resolution
 3. jsrt v1: serialized sync segments, microtask ordering, `.then` chains
 4. Node-API surface library (fs, path) for real CLI tools
 5. Tuple types → structs; object unions → sealed interface pattern

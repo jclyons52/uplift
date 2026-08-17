@@ -6,6 +6,16 @@ import (
 	"strings"
 )
 
+// CompileError is one `go build` failure in a generated file, fed back into
+// the report by the driver loop so the LLM's worklist includes what the Go
+// compiler rejected.
+type CompileError struct {
+	File    string // generated Go file, relative to the output root
+	Line    int    // line in the generated Go file (0 when unknown)
+	Col     int    // column (0 when unknown)
+	Message string
+}
+
 // Report summarizes the LLM post-work a transpiled file needs: every gap
 // recorded during transpilation, a complexity score, and a human-readable
 // rendering.
@@ -16,6 +26,10 @@ type Report struct {
 	Items       []WorkItem // gaps, in source order
 	EmittedOK   bool       // whether transpilation completed
 	FatalErrors []string   // internal errors that aborted emission
+
+	// CompileErrors, when set, holds `go build` failures in the generated
+	// file (fed back by the driver loop).
+	CompileErrors []CompileError
 
 	// Files, when set, holds the per-file reports of a multi-file package;
 	// the fields above then describe the whole package (Items stays empty,
@@ -109,6 +123,7 @@ func (r *Report) String() string {
 		b.WriteString("\n  Work items (grouped by line):\n")
 		renderItems(&b, r.Items, "    ")
 	}
+	renderCompileErrors(&b, r.CompileErrors, "    ")
 	if len(r.FatalErrors) > 0 {
 		b.WriteString("\n  Fatal errors:\n")
 		for _, e := range r.FatalErrors {
@@ -143,13 +158,33 @@ func (r *Report) stringPackage() string {
 		if len(f.Items) > 0 {
 			renderItems(&b, f.Items, "      ")
 		}
+		renderCompileErrors(&b, f.CompileErrors, "      ")
 		if len(f.FatalErrors) > 0 {
 			for _, e := range f.FatalErrors {
 				fmt.Fprintf(&b, "      [error] %s\n", e)
 			}
 		}
 	}
+	renderCompileErrors(&b, r.CompileErrors, "  ")
 	return b.String()
+}
+
+// renderCompileErrors writes go build findings, when any.
+func renderCompileErrors(b *strings.Builder, errs []CompileError, indent string) {
+	if len(errs) == 0 {
+		return
+	}
+	b.WriteString("\n  go build findings:\n")
+	for _, e := range errs {
+		loc := e.File
+		if e.Line > 0 {
+			loc = fmt.Sprintf("%s:%d", e.File, e.Line)
+			if e.Col > 0 {
+				loc = fmt.Sprintf("%s:%d", loc, e.Col)
+			}
+		}
+		fmt.Fprintf(b, "%s  %s: %s\n", indent, loc, e.Message)
+	}
 }
 
 // renderItems writes work items sorted by TS line.
