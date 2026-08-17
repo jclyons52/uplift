@@ -1,6 +1,7 @@
 package transpile
 
 import (
+	"path/filepath"
 	"strings"
 
 	tsmorph "github.com/jclyons52/ts-go-morph"
@@ -156,18 +157,19 @@ func (tr *transpiler) handleCommonJSRequireStatement(n tsmorph.Node) bool {
 // of `module.exports = {...}`) as a Go top-level symbol.
 func (tr *transpiler) emitNamedExport(name string, value tsmorph.Node) error {
 	tr.declared[name] = true
+	goName := goSafeName(name)
 	an := value.ASTNode()
 	switch {
 	case ast.IsFunctionExpression(an), ast.IsArrowFunction(an), ast.IsFunctionDeclaration(an):
-		return tr.emitFunctionWithName(value, name, false)
+		return tr.emitFunctionWithName(value, goName, false)
 	case ast.IsShorthandPropertyAssignment(an):
 		// `{ parse }` ≡ exporting the already-declared `parse`.
 		return nil
 	case ast.IsIdentifier(an):
-		// Re-export of an existing symbol: expose under `name` only when it
+		// Re-export of an existing symbol: expose under `goName` only when it
 		// differs (`exports.foo = bar`).
-		if name != value.Name() {
-			tr.out.line("var " + name + " = " + value.Name())
+		if goName != value.Name() {
+			tr.out.line("var " + goName + " = " + value.Name())
 		}
 		return nil
 	case ast.IsObjectLiteralExpression(an):
@@ -188,10 +190,28 @@ func (tr *transpiler) emitNamedExport(name string, value tsmorph.Node) error {
 			return err
 		}
 		if s != "" {
-			tr.out.line("var " + name + " = " + s)
+			tr.out.line("var " + goName + " = " + s)
 		}
 		return nil
 	}
+}
+
+// goKeywords are Go reserved words; an identifier with one of these names
+// cannot be a Go declaration.
+var goKeywords = map[string]bool{
+	"break": true, "case": true, "chan": true, "const": true, "continue": true,
+	"default": true, "defer": true, "else": true, "fallthrough": true, "for": true,
+	"func": true, "go": true, "goto": true, "if": true, "import": true, "interface": true,
+	"map": true, "package": true, "range": true, "return": true, "select": true,
+	"struct": true, "switch": true, "type": true, "var": true,
+}
+
+// goSafeName escapes Go reserved words by appending `_`.
+func goSafeName(name string) string {
+	if goKeywords[name] {
+		return name + "_"
+	}
+	return name
 }
 
 // emitDefaultExport emits `module.exports = <value>`: an object literal
@@ -213,8 +233,10 @@ func (tr *transpiler) emitDefaultExport(value tsmorph.Node) error {
 		return nil
 	}
 	if ast.IsFunctionExpression(an) || ast.IsArrowFunction(an) {
-		tr.recordGap(SevTodo, "import", value, "module.exports = anonymous function — default interop not emitted; give it a named export")
-		return nil
+		// module.exports = anonymous function — the module's single default.
+		// Name it after the source file so it is addressable and the module
+		// stays self-contained.
+		return tr.emitFunctionWithName(value, tr.defaultExportName(), false)
 	}
 	if ast.IsIdentifier(an) {
 		// module.exports = existingName — the symbol is already top-level.
@@ -223,6 +245,47 @@ func (tr *transpiler) emitDefaultExport(value tsmorph.Node) error {
 	}
 	tr.recordGap(SevTodo, "import", value, "module.exports = single value — default interop not emitted; give it a named export")
 	return nil
+}
+
+// defaultExportName returns a deterministic Go name for an unnamed
+// `module.exports = function` default, derived from the source file's base
+// name (e.g. options.js -> Options).
+func (tr *transpiler) defaultExportName() string {
+	base := filepath.Base(tr.sf.FilePath())
+	base = strings.TrimSuffix(base, filepath.Ext(base))
+	var b strings.Builder
+	up := true
+	for _, r := range base {
+		letter := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_'
+		digit := r >= '0' && r <= '9'
+		if letter {
+			if up {
+				r = uppercase(r)
+				up = false
+			}
+			b.WriteRune(r)
+		} else if digit {
+			if up && b.Len() == 0 {
+				b.WriteRune('D')
+			}
+			b.WriteRune(r)
+			up = false
+		} else {
+			up = true // separator: next letter capitalized
+		}
+	}
+	name := strings.TrimSuffix(b.String(), "_")
+	if name == "" {
+		name = "Module"
+	}
+	return name
+}
+
+func uppercase(r rune) rune {
+	if r >= 'a' && r <= 'z' {
+		return r - 'a' + 'A'
+	}
+	return r
 }
 
 // cjsObjectMember returns the name and value node of an object-literal member

@@ -122,6 +122,11 @@ func (tr *transpiler) emitStatement(n tsmorph.Node) error {
 		if !ok {
 			return nil
 		}
+		// String-literal statement expressions are directives (`"use strict"`)
+		// with no Go meaning — drop them.
+		if ast.IsStringLiteral(e.ASTNode()) {
+			return nil
+		}
 		// CommonJS: `exports.x = v` / `module.exports = {...}`.
 		if handled, err := tr.handleCommonJSExport(e); handled {
 			return err

@@ -54,3 +54,26 @@ module.exports = { read: function(p) { return "x"; } };`)
 		t.Errorf("CJS export alongside a require should still emit:\n%s", out)
 	}
 }
+
+func TestCJSDefaultAnonymousFunction(t *testing.T) {
+	out := transpileSrc(t, `module.exports = function(flag) { const n = 40; return n + 2; };`)
+	if !strings.Contains(out, "func Obj(") {
+		t.Errorf("anonymous default should become a file-derived exported func (/obj.ts -> Obj):\n%s", out)
+	}
+	if strings.Contains(out, "default interop not emitted") {
+		t.Errorf("default anonymous func should no longer be gapped:\n%s", out)
+	}
+	compileGo(t, "cjs.go", out)
+}
+
+func TestCJSDirectiveDropped(t *testing.T) {
+	out := transpileSrc(t, `"use strict";
+module.exports = { go: function() { return 1; } };`)
+	if strings.Contains(out, "use strict") {
+		t.Errorf("directive should be dropped:\n%s", out)
+	}
+	if !strings.Contains(out, "func go_(") {
+		t.Errorf("export named after a Go keyword should be escaped (go -> go_):\n%s", out)
+	}
+	compileGo(t, "cjs.go", out)
+}
