@@ -73,6 +73,19 @@ const x: Pair = { a: 1, b: "y" };`)
 	compileGo(t, "obj.go", out)
 }
 
+// TestImportTypeDegrades: typeof import("fs") in a type position must not
+// fail the statement — it becomes any + a gap.
+func TestImportTypeDegrades(t *testing.T) {
+	out := transpileSrc(t, `function f(x: typeof import("fs")): number { return 1; }`)
+	if strings.Contains(out, "panic") {
+		t.Fatalf("import type must not panic:\n%s", out)
+	}
+	if !strings.Contains(out, "TODO(ts2go)") && !strings.Contains(out, "import type") {
+		t.Errorf("import type should record a gap:\n%s", out)
+	}
+	compileGo(t, "imp.go", out)
+}
+
 // TestPanicRecovery proves the resilience contract holds even when a
 // transpile step panics: the panic becomes an error (recorded as a fatal
 // item, emitted as a TODO placeholder) instead of aborting the file. Both

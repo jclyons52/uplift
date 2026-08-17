@@ -241,6 +241,17 @@ func (tr *transpiler) goType(n tsmorph.Node) (string, error) {
 		return tr.goFunctionType(n)
 	case ast.IsKeywordTypeNode(n.ASTNode()):
 		return tr.goKeywordType(n)
+	case ast.IsImportTypeNode(n.ASTNode()):
+		// typeof import("mod") / import("mod").Type — resolved through the
+		// checker when the module is real; unresolvable modules degrade to
+		// any with a gap instead of failing the enclosing statement.
+		if typ := n.Type(); !typ.IsUnknown() {
+			if s := typ.Text(); s != "" && s != "any" {
+				return tr.cleanCheckerType(s), nil
+			}
+		}
+		tr.recordGap(SevTodo, "import", n, "import type %q — resolve or stub the module's types", oneLine(snippetLong(n)))
+		return "any", nil
 	default:
 		// Fall back to the checker: conditional/mapped/template-literal types
 		// are already resolved by the TypeScript checker.
