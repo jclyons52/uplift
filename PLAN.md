@@ -140,6 +140,47 @@ properties, loops, templates, switch, enums with initializers, string-union
 aliases, recursive type args, array-method loops, try/catch binding, ban
 reporting, placeholders + manifest, and report complexity.
 
+## Port discipline (from the TypeScript team's Corsa port)
+
+The TypeScript team ported their compiler to Go in ~18 months (announced
+Mar 2025, TypeScript 7.0 shipped) and documented the process in their blog
+posts, the typescript-go repo, and their agent playbook
+(`.github/agents/strada-corsa-port.md`). The lessons that map onto ts2go:
+
+- **Faithful port, not rewrite.** They wrote new Go code while keeping the
+  structure and logic of the original 1:1, so results stay consistent
+  between the two compilers. ts2go is structural by construction (it
+  transpiles), but the rule still applies: never "improve" behavior during
+  transpile — anything behavioral is a flagged `approx`.
+- **The original test suite is the oracle.** The Go repo imports the whole
+  TypeScript test corpus via a git submodule pinned to the commit being
+  ported. Tests are never ported — they are shared. Their headline parity
+  metric is a number: ~20,000 tests, ~6,000 that produce errors, and the
+  divergence count (was 74 mid-port, now 0). → ts2go's equivalent: run the
+  ported project's own tests against the transpiled Go under the jsrt shim
+  and report pass/fail vs the JS baseline.
+- **Diffs are the worklist.** Their loop: port → build → run tests →
+  baseline diffs appear → adopt them → `git diff testdata/**/*.diff` must
+  SHRINK. "Your change is not correct unless diffs are reduced." ts2go's
+  driver loop (compile findings) is the compile-level half of this; the
+  behavior-level half is the test corpus above.
+- **Pin the source.** The submodule pins the exact commit being ported;
+  the JS line was feature-frozen during the port. Port a pinned snapshot of
+  the source repo so reports are reproducible, then re-pin deltas.
+- **Port in dependency order.** Parser → binder → checker (bottom-up);
+  the port was usable the whole way. For ts2go: start with leaf packages
+  (no imports) — each compiles green per v0.3 — then move up; the package
+  report's cross-package wiring items point exactly at the next layer.
+- **Keep both sides runnable.** They ran TS 6 and 7 side-by-side with a
+  toggle, using the old implementation as the differential reference. The
+  jsrt shim models JS semantics, so a transpiled program and the original
+  can run the same inputs and be compared.
+- **Agents are the porters, humans own the results.** They encode the
+  porting protocol as Copilot instructions (fetch PR patch → translate →
+  build → test → accept baselines → verify diffs reduced → commit) but
+  ban bulk agent-driven PRs. The ts2go driver loop + report is the same
+  protocol shape; keep a human (or operator) accountable per change-set.
+
 ## Roadmap
 
 North star: an ESLint-class rewrite. Async is handled via the **jsrt shim**
@@ -159,9 +200,14 @@ native-concurrency pass. Next steps toward the north star:
    finding — in the report and appended to the generated file itself.
    Remaining: wire-up of the loop into an agent (LLM reads findings, fixes,
    re-runs); tsconfig `paths`/`baseUrl` resolution
-3. jsrt v1: serialized sync segments, microtask ordering, `.then` chains
-4. Node-API surface library (fs, path) for real CLI tools
-5. Tuple types → structs; object unions → sealed interface pattern
-6. Generic constraints (`T extends {id: string}` → generated interface)
-7. tsconfig support (paths, baseUrl) for import resolution beyond relative
+3. **Test-corpus oracle + parity metric** — the Corsa insight applied:
+   transpile a real project (and its tests) under the jsrt shim, run the
+   tests, and report pass/fail against the JS baseline as one number (the
+   equivalent of their "74/6,000" count). This makes the port dirigible:
+   every transpiler change either reduces divergence or is reverted.
+4. jsrt v1: serialized sync segments, microtask ordering, `.then` chains
+5. Node-API surface library (fs, path) for real CLI tools
+6. Tuple types → structs; object unions → sealed interface pattern
+7. Generic constraints (`T extends {id: string}` → generated interface)
+8. tsconfig support (paths, baseUrl) for import resolution beyond relative
 
