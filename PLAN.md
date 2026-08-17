@@ -205,9 +205,15 @@ native-concurrency pass. Next steps toward the north star:
    tests, and report pass/fail against the JS baseline as one number (the
    equivalent of their "74/6,000" count). This makes the port dirigible:
    every transpiler change either reduces divergence or is reverted.
-4. jsrt v1: serialized sync segments, microtask ordering, `.then` chains
-5. Node-API surface library (fs, path) for real CLI tools
-6. Tuple types → structs; object unions → sealed interface pattern
-7. Generic constraints (`T extends {id: string}` → generated interface)
-8. tsconfig support (paths, baseUrl) for import resolution beyond relative
+4. **JS→TS lift — DONE**: `ts2go lift` converts JS (JSDoc or
+   not) to annotated TS via the checker (params, optional, rest, returns,
+   contextual callbacks); output typechecks under `tsc --strict`. This makes
+   JS codebases (ESLint-class) introspectable into the pipeline. Next:
+   lift `@typedef` → real TS type aliases/interfaces; use the type-audit to
+   drive which source sites to annotate.
+5. jsrt v1: serialized sync segments, microtask ordering, `.then` chains
+6. Node-API surface library (fs, path) for real CLI tools
+7. Tuple types → structs; object unions → sealed interface pattern
+8. Generic constraints (`T extends {id: string}` → generated interface)
+9. tsconfig support (paths, baseUrl) for import resolution beyond relative
 

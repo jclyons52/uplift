@@ -20,7 +20,25 @@ ts2go -report r.txt src/app.ts # also write the full report to r.txt
 ts2go src/                    # multi-file: walk src/, one Go package per directory
 ts2go -o out/ -package mypkg src/  # direct output + root package name
 ts2go -verify=false src/      # skip the go-build feedback step
+ts2go lift app.js -o app.ts   # JS→TS: annotate params/returns from JSDoc+checker
 ```
+
+## Lifting JavaScript to TypeScript (`ts2go lift`)
+
+`ts2go lift` converts JavaScript (JSDoc-typed or not) to annotated TypeScript:
+it asks the TypeScript checker for the resolved type of every parameter and
+return value and inserts the annotations, leaving everything else
+byte-for-byte. It's the JS→TS bridge for the pipeline — a codebase like
+ESLint (100 % JS + JSDoc) can be lifted to typed TS, then transpiled to Go
+without the `any`/dynamic gap cascade.
+
+- safe: the lifted output typechecks under `tsc --strict` with zero changes
+  to logic; types the checker can't resolve (any/unknown) are left
+  unannotated rather than forced
+- JSDoc `@param {string}` → `name: string`; optional `[x]` → `x?: T`;
+  `@param {...number}` → `...args: number[]`; `@returns {T}` → `: T`
+- contextually-typed callbacks: `arr.forEach((x) => …)` → `(x: T) => …`
+- mirrors directory trees; `-o` names the output file or directory
 
 Every run (unless `-verify=false`) **builds the generated Go** in a temp
 module and feeds every compiler failure back into the assessment: each
