@@ -134,8 +134,15 @@ func min(a, b int) int {
 }
 
 // emitTodoStatement writes a compiling statement-level placeholder plus the
-// original TS snippet as context for the LLM.
+// original TS snippet as context for the LLM. It is panic-safe: if even the
+// placeholder machinery trips over the node, a bare `_ = 0` line still
+// lands so the file keeps compiling.
 func (tr *transpiler) emitTodoStatement(n tsmorph.Node, format string, args ...any) {
+	defer func() {
+		if recover() != nil {
+			tr.out.line("_ = 0 // TODO(ts2go): untranslated statement")
+		}
+	}()
 	msg := fmt.Sprintf(format, args...)
 	tr.recordGap(SevTodo, "statement", n, "%s", msg)
 	tr.out.line("// TODO(ts2go): " + msg)

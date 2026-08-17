@@ -62,6 +62,10 @@ func main() {
 
 // runSingle transpiles one file to one .go file (v0 behaviour).
 func runSingle(input, outFlag string, dryRun, verify bool, reportFlag string) {
+	if err := validateInput(input); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
 	p, err := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
@@ -73,6 +77,10 @@ func runSingle(input, outFlag string, dryRun, verify bool, reportFlag string) {
 		os.Exit(1)
 	}
 	sf := p.CreateSourceFile(virtualPath(input), string(code))
+	if sf == nil {
+		fmt.Fprintf(os.Stderr, "error: could not parse %s as TypeScript\n", input)
+		os.Exit(1)
+	}
 
 	t := transpile.NewTranspiler(p, sf)
 	out, err := t.Transpile()
@@ -153,6 +161,10 @@ func runPackage(inputs []string, outFlag, pkgFlag string, dryRun, verify bool, r
 			os.Exit(1)
 		}
 		sfs = append(sfs, p.CreateSourceFile(filepath.ToSlash(abs), string(code)))
+		if sfs[len(sfs)-1] == nil {
+			fmt.Fprintf(os.Stderr, "error: could not parse %s as TypeScript\n", f)
+			os.Exit(1)
+		}
 	}
 
 	outDir := outFlag
@@ -222,6 +234,15 @@ func runPackage(inputs []string, outFlag, pkgFlag string, dryRun, verify bool, r
 	}
 }
 
+// validateInput rejects files ts2go cannot transpile with a clear message
+// instead of a panic (a .js source file produces a nil SourceFile).
+func validateInput(path string) error {
+	if !strings.HasSuffix(path, ".ts") && !strings.HasSuffix(path, ".tsx") {
+		return fmt.Errorf("unsupported input %q: ts2go transpiles TypeScript. JavaScript/JSDoc support (ESLint-style codebases) is a planned future phase", path)
+	}
+	return nil
+}
+
 // collectInputs expands args into an ordered, de-duplicated list of .ts
 // files. Directories are walked recursively, skipping node_modules, hidden
 // directories, and *.d.ts declaration files.
@@ -240,8 +261,8 @@ func collectInputs(args []string) ([]string, error) {
 			return nil, err
 		}
 		if !st.IsDir() {
-			if !strings.HasSuffix(a, ".ts") {
-				return nil, fmt.Errorf("not a .ts file: %s", a)
+			if err := validateInput(a); err != nil {
+				return nil, err
 			}
 			add(a)
 			continue

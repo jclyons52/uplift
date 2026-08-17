@@ -7,6 +7,20 @@ import (
 	"github.com/jclyons52/ts2go/internal/transpile"
 )
 
+func TestValidateInput(t *testing.T) {
+	if err := validateInput("app.ts"); err != nil {
+		t.Errorf("app.ts should be accepted, got %v", err)
+	}
+	if err := validateInput("app.tsx"); err != nil {
+		t.Errorf("app.tsx should be accepted, got %v", err)
+	}
+	for _, bad := range []string{"app.js", "app.jsx", "app.mjs", "app"} {
+		if err := validateInput(bad); err == nil {
+			t.Errorf("%s should be rejected", bad)
+		}
+	}
+}
+
 func TestParseGoErrors(t *testing.T) {
 	out := `# demo/lib
 lib/format.go:14:26: undefined: jsrtPromise

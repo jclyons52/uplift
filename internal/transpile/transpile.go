@@ -103,6 +103,24 @@ func (t *Transpiler) SetPackageName(name string) { t.tr.pkgName = name }
 // Valid after Transpile.
 func (t *Transpiler) UsedShim() bool { return t.tr.usedShim }
 
+// recoverToError converts a panic into an error, for use in a deferred
+// call: `defer recoverToError(&err)`. The resilience contract is panic-proof
+// because every statement emitter uses it — a ts-go-morph accessor gap
+// degrades to a TODO placeholder instead of aborting the file.
+func recoverToError(err *error) {
+	if r := recover(); r != nil {
+		*err = fmt.Errorf("panic: %v", r)
+	}
+}
+
+// transpileStatementSafe runs transpileStatement with panic recovery: a
+// panic (e.g. a ts-go-morph accessor gap) becomes an error the caller turns
+// into a TODO placeholder, instead of aborting the whole file.
+func (tr *transpiler) transpileStatementSafe(stmt tsmorph.Node) (err error) {
+	defer recoverToError(&err)
+	return tr.transpileStatement(stmt, false)
+}
+
 // Transpile converts the source file to Go source text. It never aborts on
 // unsupported constructs: each gap is replaced by a compiling placeholder,
 // recorded in the embedded post-work manifest, and listed in Report().
@@ -126,14 +144,15 @@ func (t *Transpiler) Transpile() (string, error) {
 			// scope; route them into a synthesized func init().
 			exprOut := tr.out
 			tr.out = tr.initBuf
-			err := tr.emitStatement(stmt)
+			err := tr.transpileStatementSafe(stmt)
 			tr.out = exprOut
 			if err != nil {
 				tr.fatal = append(tr.fatal, fmt.Sprintf("line %d: %v", tr.lineOf(stmt), err))
+				tr.emitTodoStatement(stmt, "transpilation error: %v", err)
 			}
 			continue
 		}
-		if err := tr.transpileStatement(stmt, false); err != nil {
+		if err := tr.transpileStatementSafe(stmt); err != nil {
 			// Resilience: a failed statement becomes a TODO placeholder and
 			// the rest of the file still transpiles.
 			tr.fatal = append(tr.fatal, fmt.Sprintf("line %d: %v", tr.lineOf(stmt), err))

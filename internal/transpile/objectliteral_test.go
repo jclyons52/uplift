@@ -72,3 +72,17 @@ func TestObjectLiteralTypedShape(t *testing.T) {
 const x: Pair = { a: 1, b: "y" };`)
 	compileGo(t, "obj.go", out)
 }
+
+// TestPanicRecovery proves the resilience contract holds even when a
+// transpile step panics: the panic becomes an error (recorded as a fatal
+// item, emitted as a TODO placeholder) instead of aborting the file. Both
+// the statement loop and emitBlock wire this via `defer recoverToError`.
+func TestPanicRecovery(t *testing.T) {
+	err := func() (err error) {
+		defer recoverToError(&err)
+		panic("synthetic accessor bug")
+	}()
+	if err == nil || !strings.Contains(err.Error(), "synthetic accessor bug") {
+		t.Fatalf("expected recovered panic error, got %v", err)
+	}
+}

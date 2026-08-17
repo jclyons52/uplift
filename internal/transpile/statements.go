@@ -48,11 +48,18 @@ func (tr *transpiler) variableDeclExpr(n tsmorph.Node) (string, error) {
 	return strings.Join(parts, ", "), nil
 }
 
-// emitBlock emits a `{ ... }` block's statements at the current indent.
+// emitBlock emits a `{ ... }` block's statements at the current indent. A
+// panic inside one statement (a ts-go-morph accessor gap) degrades to a
+// TODO placeholder; the rest of the block still emits.
 func (tr *transpiler) emitBlock(n tsmorph.Node) error {
 	for _, s := range n.GetStatements() {
-		if err := tr.emitStatement(s); err != nil {
-			return err
+		err := func() (err error) {
+			defer recoverToError(&err)
+			return tr.emitStatement(s)
+		}()
+		if err != nil {
+			tr.fatal = append(tr.fatal, fmt.Sprintf("line %d: %v", tr.lineOf(s), err))
+			tr.emitTodoStatement(s, "transpilation error: %v", err)
 		}
 	}
 	return nil
