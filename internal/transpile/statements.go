@@ -876,6 +876,24 @@ func (tr *transpiler) callSpecial(n, callee tsmorph.Node) (string, bool, error) 
 		argStrs = append(argStrs, s)
 	}
 	argsJ := strings.Join(argStrs, ", ")
+	// Test-harness assertions (chai): assert.strictEqual(x, y) etc. map to
+	// the oracle/go-test helpers of the same names, defined by the harness.
+	if obj.Text() == "assert" || strings.HasSuffix(obj.Text(), ".assert") {
+		switch propS {
+		case "strictEqual":
+			return "assertStrictEqual(" + argsJ + ")", true, nil
+		case "equal":
+			return "assertEqual(" + argsJ + ")", true, nil
+		case "deepEqual":
+			return "assertDeepEqual(" + argsJ + ")", true, nil
+		case "isTrue":
+			return "assertIsTrue(" + argsJ + ")", true, nil
+		case "isFalse":
+			return "assertIsFalse(" + argsJ + ")", true, nil
+		case "ok":
+			return "assertOK(" + argsJ + ")", true, nil
+		}
+	}
 	switch propS {
 	case "push":
 		return "append(" + objS + ", " + argsJ + ")", true, nil

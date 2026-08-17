@@ -224,6 +224,21 @@ func (t *Transpiler) Transpile() (string, error) {
 	}
 	tr.out = saved
 	// Now emit the preamble (imports only what was used) and glue it on top.
+	// Import pruning: a mapped call may mark a package used but later
+	// collapse to a placeholder (e.g. a regex-literal argument), leaving the
+	// import unreferenced. Drop any import the body never actually mentions.
+	bodyText := body.String()
+	// The jsrt shim (appended later) references fmt/sync/time itself; keep
+	// those if the shim will land in this file.
+	if tr.usedShim && tr.emitShim {
+		bodyText += jsrtShim
+	}
+	pruned := pruneUnusedImports(bodyText, tr.used)
+	for pkg := range tr.used {
+		if !pruned[pkg] {
+			delete(tr.used, pkg)
+		}
+	}
 	pre := newGoWriter()
 	tr.out = pre
 	if err := tr.emitPreamble(); err != nil {
@@ -388,6 +403,19 @@ func (tr *transpiler) goTypeReference(n tsmorph.Node) (string, error) {
 		return info.target, nil
 	}
 	return base, nil
+}
+
+// pruneUnusedImports keeps only stdlib packages the body text actually
+// references (as `pkg.`), so an import whose usage collapsed into a
+// placeholder is dropped instead of failing the build.
+func pruneUnusedImports(body string, used map[string]bool) map[string]bool {
+	keep := map[string]bool{}
+	for pkg := range used {
+		if strings.Contains(body, pkg+".") {
+			keep[pkg] = true
+		}
+	}
+	return keep
 }
 
 // goUnionType handles `A | B | null | undefined`. Nullable members become
