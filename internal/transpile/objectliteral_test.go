@@ -29,8 +29,9 @@ const x = { a };`)
 	if strings.Contains(out, "panic") {
 		t.Fatalf("shorthand object literal must not panic:\n%s", out)
 	}
-	if !strings.Contains(out, "A: a") {
-		t.Errorf("shorthand should become a keyed field A: a:\n%s", out)
+	// Untyped literals emit as map[string]any with the original key spelling.
+	if !strings.Contains(out, `"a": a`) {
+		t.Errorf("shorthand should become a keyed map entry \"a\": a:\n%s", out)
 	}
 	compileGo(t, "obj.go", out)
 }

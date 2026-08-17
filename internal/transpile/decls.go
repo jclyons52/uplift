@@ -25,7 +25,7 @@ func (tr *transpiler) emitPreamble() error {
 	tr.out.line("package " + tr.pkgName)
 	tr.out.blank()
 	var imports []string
-	for _, pkg := range []string{"fmt", "strings", "math", "maps", "strconv", "errors"} {
+	for _, pkg := range []string{"fmt", "strings", "math", "maps", "strconv", "errors", "regexp"} {
 		if tr.used[pkg] {
 			imports = append(imports, `"`+pkg+`"`)
 		}
@@ -34,7 +34,7 @@ func (tr *transpiler) emitPreamble() error {
 		// The shim source is appended to this file and needs these; when
 		// the shim lives in its own file (multi-file packages) it declares
 		// its own imports.
-		for _, pkg := range []string{"fmt", "sync", "time"} {
+		for _, pkg := range []string{"fmt", "sync", "time", "reflect", "regexp", "strings"} {
 			if !slices.Contains(imports, `"`+pkg+`"`) {
 				imports = append(imports, `"`+pkg+`"`)
 			}

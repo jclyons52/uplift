@@ -2,6 +2,7 @@ package transpile
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	tsmorph "github.com/jclyons52/ts-go-morph"
@@ -639,11 +640,47 @@ func (tr *transpiler) emitExpr(n tsmorph.Node) (string, error) {
 		return tr.typeOfExpression(n)
 	case ast.IsAwaitExpression(n.ASTNode()):
 		return tr.awaitExpression(n)
+	case ast.KindRegularExpressionLiteral == n.Kind():
+		return tr.regularExpressionLiteral(n)
 	default:
 		// Resilience: unsupported expressions become a compiling `any(nil)`
 		// placeholder with an inline TODO; a report entry is recorded.
 		return tr.todoExpr(n, "unsupported expression %s", n.KindName()), nil
 	}
+}
+
+// regularExpressionLiteral maps /pat/flags to regexp.MustCompile with JS
+// flag translation (i, m, s; g is implicit in Replace-all semantics).
+func (tr *transpiler) regularExpressionLiteral(n tsmorph.Node) (string, error) {
+	src := n.Text() // /pat/flags
+	if len(src) < 2 || !strings.HasPrefix(src, "/") {
+		return tr.todoExpr(n, "malformed regex literal"), nil
+	}
+	end := strings.LastIndex(src, "/")
+	if end <= 0 {
+		return tr.todoExpr(n, "malformed regex literal"), nil
+	}
+	pat, flags := src[1:end], src[end+1:]
+	// Go flag prefix: (?ims) style. JS 'm' -> Go 'm' (multiline ^$); JS 's'
+	// -> Go 's' (dot matches \n). 'g' has no Go equivalent (replace-all is
+	// chosen by the caller).
+	var fs []string
+	for _, f := range flags {
+		switch f {
+		case 'i':
+			fs = append(fs, "i")
+		case 'm':
+			fs = append(fs, "m")
+		case 's':
+			fs = append(fs, "s")
+		}
+	}
+	pre := ""
+	if len(fs) > 0 {
+		pre = "(?" + strings.Join(fs, "") + ")"
+	}
+	tr.used["regexp"] = true
+	return "regexp.MustCompile(" + strconv.Quote(pre+pat) + ")", nil
 }
 
 // awaitExpression maps `await e` to jsrtAwait — the shim parks the current
@@ -761,13 +798,16 @@ func (tr *transpiler) elementAccess(n tsmorph.Node) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Indexing an `any` cannot compile in Go — flag for the LLM.
+	// Indexing an `any` cannot compile in Go — route through jsrtGet, which
+	// handles map/slice/string receivers dynamically (with an approx gap so
+	// the LLM still sees the tightenable site).
 	if t := obj.Type(); !t.IsUnknown() && t.IsAny() {
 		if at := n.Type(); !at.IsUnknown() && !at.IsAny() {
 			tr.tightenable("dynamic", n, at.Text(), "any")
 		}
-		tr.recordGap(SevTodo, "dynamic", n, "dynamic element access %s[%s] on any", objS, idxS)
-		return placeholderExpr(objS + "[" + idxS + "]"), nil
+		tr.recordGap(SevApprox, "dynamic", n, "dynamic element access %s[%s] via jsrtGet", objS, idxS)
+		tr.usedShim = true
+		return "jsrtGet(" + objS + ", " + idxS + ")", nil
 	}
 	return objS + "[" + idxS + "]", nil
 }
@@ -917,6 +957,11 @@ func (tr *transpiler) callSpecial(n, callee tsmorph.Node) (string, bool, error) 
 		return "strings.ToLower(" + objS + ")", true, nil
 	case "trim":
 		tr.used["strings"] = true
+		// JS coerces the receiver to string; an `any` receiver needs that.
+		if t := obj.Type(); !t.IsUnknown() && t.IsAny() {
+			tr.used["fmt"] = true
+			return "strings.TrimSpace(fmt.Sprint(" + objS + "))", true, nil
+		}
 		return "strings.TrimSpace(" + objS + ")", true, nil
 	case "includes":
 		tr.used["strings"] = true
@@ -930,6 +975,30 @@ func (tr *transpiler) callSpecial(n, callee tsmorph.Node) (string, bool, error) 
 	case "join":
 		tr.used["strings"] = true
 		return "strings.Join(" + objS + ", " + argsJ + ")", true, nil
+	case "replace":
+		// s.replace(re, fn|string): the JS regexp with a callback maps to
+		// jsrtReplace (reflection call, JS arity); a plain string maps to
+		// strings.ReplaceAll.
+		if len(args) >= 2 && ast.KindRegularExpressionLiteral == args[0].Kind() {
+			if fs, err := tr.emitExpr(args[1]); err == nil {
+				tr.usedShim = true
+				return "jsrtReplace(" + objS + ", " + argStrs[0] + ", " + fs + ")", true, nil
+			}
+		}
+		if len(argStrs) == 2 {
+			tr.used["strings"] = true
+			return "strings.ReplaceAll(" + objS + ", " + argStrs[0] + ", " + argStrs[1] + ")", true, nil
+		}
+		return placeholderExpr("TODO(ts2go): replace"), true, nil
+	case "split":
+		// s.split(sep): JS returns string[]; strings.Split returns []string.
+		// Wrap into []any for dynamic parity.
+		if len(argStrs) == 1 {
+			tr.used["strings"] = true
+			tr.recordGap(SevApprox, "expression", n, "split returns []string wrapped as []any")
+			return "func() []any { out := []any{}; for _, p := range strings.Split(" + objS + ", " + argStrs[0] + ") { out = append(out, p) }; return out }()", true, nil
+		}
+		return placeholderExpr("TODO(ts2go): split"), true, nil
 	case "parseInt":
 		tr.used["strconv"] = true
 		if len(argStrs) == 1 {
@@ -1080,8 +1149,9 @@ func (tr *transpiler) binaryExpression(n tsmorph.Node) (string, error) {
 		tr.recordGap(SevTodo, "dynamic", n, "instanceof needs a manual type assertion/type switch")
 		return placeholderExpr("instanceof"), nil
 	case "in":
-		tr.recordGap(SevTodo, "dynamic", n, "'in' operator needs a map lookup or type switch")
-		return placeholderExpr("in-operator"), nil
+		// JS `k in obj` — jsrtIn handles map/slice/string receivers.
+		tr.usedShim = true
+		return "jsrtIn(" + ls + ", " + rs + ")", nil
 	default:
 		return ls + " " + op + " " + rs, nil
 	}
@@ -1271,14 +1341,14 @@ func (tr *transpiler) typedObjectLiteral(n tsmorph.Node, typ string) (string, er
 		if key == "" {
 			continue
 		}
-		parts = append(parts, key+": "+val)
+		parts = append(parts, exportField(key)+": "+val)
 	}
 	return typ + "{" + strings.Join(parts, ", ") + "}", nil
 }
 
 func (tr *transpiler) objectLiteral(n tsmorph.Node) (string, error) {
 	ol, _ := n.AsObjectLiteralExpression()
-	var keys, parts []string
+	var keys, vals []string
 	for _, p := range ol.GetProperties() {
 		key, val, err := tr.objectLiteralElement(p)
 		if err != nil {
@@ -1287,23 +1357,35 @@ func (tr *transpiler) objectLiteral(n tsmorph.Node) (string, error) {
 		if key == "" {
 			continue
 		}
-		keys = append(keys, key+" any")
-		parts = append(parts, key+": "+val)
+		keys = append(keys, key)
+		vals = append(vals, val)
 	}
 	// When the checker resolves this literal to a named type, emit a typed
-	// struct literal; otherwise fall back to an anonymous struct.
+	// struct literal (exported field names); otherwise fall back to a map
+	// literal with the original key spellings — untyped JS objects are
+	// accessed dynamically (`k in data`, `data[k]`), which a struct cannot
+	// express but map[string]any does natively.
 	typ := n.Type()
 	if sym, ok := typ.Symbol(); ok {
 		if name := sym.Name(); name != "" && !strings.HasPrefix(name, "__") {
-			return name + "{" + strings.Join(parts, ", ") + "}", nil
+			var sparts []string
+			for i := range vals {
+				sparts = append(sparts, exportField(keys[i])+": "+vals[i])
+			}
+			return name + "{" + strings.Join(sparts, ", ") + "}", nil
 		}
 	}
-	if len(parts) == 0 {
-		// All elements were gaps (spread, methods, ...): an empty struct
+	if len(vals) == 0 {
+		// All elements were gaps (spread, methods, ...): an empty map
 		// literal is the compiling stand-in.
-		return "struct{}{}", nil
+		return "map[string]any{}", nil
 	}
-	return "struct{ " + strings.Join(keys, "; ") + " }{ " + strings.Join(parts, ", ") + " }", nil
+	tr.recordGap(SevApprox, "literal", n, "untyped object literal emitted as map[string]any")
+	var mparts []string
+	for i := range vals {
+		mparts = append(mparts, `"`+keys[i]+`": `+vals[i])
+	}
+	return "map[string]any{" + strings.Join(mparts, ", ") + "}", nil
 }
 
 // objectLiteralElement renders one element of an object literal as a Go
@@ -1316,9 +1398,9 @@ func (tr *transpiler) objectLiteralElement(p tsmorph.Node) (key, value string, e
 	node := p.ASTNode()
 	switch {
 	case ast.IsShorthandPropertyAssignment(node):
-		// TS { a } means { a: a }.
+		// TS { a } means { a: a }. Map keys keep the original spelling.
 		name := p.Name()
-		return exportField(name), name, nil
+		return name, name, nil
 	case ast.IsSpreadAssignment(node):
 		tr.recordGap(SevTodo, "expression", p, "object spread has no Go struct-literal equivalent")
 		return "", "", nil
@@ -1335,7 +1417,7 @@ func (tr *transpiler) objectLiteralElement(p tsmorph.Node) (key, value string, e
 		if err != nil {
 			return "", "", err
 		}
-		return exportField(name), s, nil
+		return name, s, nil
 	default:
 		tr.recordGap(SevTodo, "expression", p, "unhandled object-literal element %s", node.Kind.String())
 		return "", "", nil

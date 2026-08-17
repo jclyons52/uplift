@@ -36,6 +36,57 @@ func jsrtTruthy(v any) bool {
 	}
 }
 
+// jsrtIn implements JS "k in m" for map/slice receivers.
+func jsrtIn(key, m any) bool {
+	switch mm := m.(type) {
+	case map[string]any:
+		_, ok := mm[fmt.Sprint(key)]
+		return ok
+	case []any:
+		if i, ok := key.(float64); ok && i == float64(int(i)) && int(i) >= 0 && int(i) < len(mm) {
+			return true
+		}
+	case string:
+		if s, ok := key.(string); ok {
+			return len(s) > 0 && strings.Contains(mm, s)
+		}
+	}
+	return false
+}
+
+// jsrtGet implements JS dynamic access m[k] on an any receiver.
+func jsrtGet(m, k any) any {
+	switch mm := m.(type) {
+	case map[string]any:
+		return mm[fmt.Sprint(k)]
+	case []any:
+		if i, ok := k.(float64); ok && i == float64(int(i)) && int(i) >= 0 && int(i) < len(mm) {
+			return mm[int(i)]
+		}
+	case string:
+		if i, ok := k.(float64); ok && i == float64(int(i)) && int(i) >= 0 && int(i) < len([]rune(mm)) {
+			return string([]rune(mm)[int(i)])
+		}
+	}
+	return nil
+}
+
+// jsrtReplace implements s.replace(re, fn): re replaces every match,
+// calling fn(match, group1, group2, ...) via reflection (the transpiled
+// callback has JS arity, not variadic). s is untyped (any) because transpiled JS
+// receivers are untyped.
+func jsrtReplace(s any, re *regexp.Regexp, fn any) string {
+	fnv := reflect.ValueOf(fn)
+	return re.ReplaceAllStringFunc(fmt.Sprint(s), func(m string) string {
+		groups := re.FindStringSubmatch(m)
+		args := make([]reflect.Value, len(groups))
+		for i, g := range groups {
+			args[i] = reflect.ValueOf(g)
+		}
+		return fmt.Sprint(fnv.Call(args)[0])
+	})
+}
+
 func jsrtResolve(v any) *jsrtPromise {
 	p := &jsrtPromise{wait: make(chan struct{})}
 	p.val = v
