@@ -94,18 +94,23 @@ each becomes a placeholder + `banned` work item (redesign required).
 ## Architecture
 
 ```
-cmd/ts2go/main.go          CLI: -o, -dry-run, -report; gofmt the output
+cmd/ts2go/main.go          CLI: -o, -dry-run, -report, -package; single file
+                           or directory/multi-file package mode
 internal/transpile/
   transpile.go             Transpiler, goType, alias fixpoint, string-union
                            aliases, declared-name pre-pass
+  package.go               Package: multi-file → one Go package per directory,
+                           import classification (same/sibling/external),
+                           once-per-package jsrt.go
   decls.go                 interfaces, classes, enums, aliases, functions,
-                           variable statements, signatures
+                           variable statements, signatures, import/export
+                           handling
   statements.go            statement + expression emitters, try/catch,
                            identifier-call builtins
   arrays.go                map/filter/reduce/forEach → typed loops
   gap.go                   WorkItem recording, placeholders, unused-local fix
   assess.go                Report: scoring, complexity label, manifest,
-                           human rendering
+                           human rendering, per-file aggregation
   ban.go                   AST ban scan + banned-callee matching
   writer.go                indent-aware Go writer
 testdata/bank.ts           end-to-end fixture
@@ -141,11 +146,16 @@ North star: an ESLint-class rewrite. Async is handled via the **jsrt shim**
 into the output only when used, and its functions are seams for a later
 native-concurrency pass. Next steps toward the north star:
 
-1. Multi-file: package mapping, imports/exports, per-file reports
+1. ~~Multi-file~~ — **done (v0.2)**: directory/multi-file input, one Go
+   package per directory, same-package imports dropped, sibling/external
+   imports as work items, once-per-package jsrt.go, aggregate per-file
+   report. Remaining: cross-package imports still need manual Go import
+   wiring (that's the LLM's work item).
 2. Driver loop: transpile → gofmt → `go build`, feeding compile errors back
    as work items (closes the loop for the LLM)
 3. jsrt v1: serialized sync segments, microtask ordering, `.then` chains
 4. Node-API surface library (fs, path) for real CLI tools
 5. Tuple types → structs; object unions → sealed interface pattern
 6. Generic constraints (`T extends {id: string}` → generated interface)
+7. tsconfig support (paths, baseUrl) for import resolution beyond relative
 

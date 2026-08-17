@@ -97,6 +97,21 @@ func condExpr(s string) string {
 	return s
 }
 
+// placeholderComment extracts "// TODO(ts2go): ..." from a placeholder
+// expression, for use on a declaration the placeholder cannot initialize
+// (e.g. `var p string = any(nil)` is not assignable in Go). Returns "" for
+// non-placeholder expressions.
+func placeholderComment(expr string) string {
+	if !strings.HasPrefix(expr, "any(nil)") {
+		return ""
+	}
+	if i := strings.Index(expr, "TODO(ts2go):"); i >= 0 {
+		msg := strings.TrimSuffix(strings.TrimSpace(expr[i+len("TODO(ts2go):"):]), "*/")
+		return "// TODO(ts2go): " + strings.TrimSpace(msg)
+	}
+	return "// TODO(ts2go): untranslated expression"
+}
+
 // markUsedIfUnused appends `_ = name` when a local variable appears unused
 // in the rest of the file — TS allows unused locals, Go does not. Emitting
 // it unconditionally would be safe but noisy, so use a cheap occurrence

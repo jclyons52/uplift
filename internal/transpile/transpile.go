@@ -42,6 +42,20 @@ type transpiler struct {
 	// usedShim is set when the emitted code references the jsrt async
 	// shim; the shim source is appended and its imports declared.
 	usedShim bool
+	// pkgDeclared, when set, is the union of top-level names across every
+	// file of the multi-file package this file belongs to; calls to names
+	// declared in sibling files of the package are then not flagged as
+	// unknown module imports.
+	pkgDeclared map[string]bool
+	// classify, when set, classifies a module specifier imported from this
+	// file: same-package imports are dropped, sibling-package and external
+	// imports become work items.
+	classify func(fromFile, spec string) (importClass, string)
+	// emitShim controls whether the jsrt shim source is appended to this
+	// file's output. A multi-file package emits it once, in its own file.
+	emitShim bool
+	// pkgName is the Go package clause written in the preamble.
+	pkgName string
 	// used tracks which stdlib packages the emitted code references, so the
 	// import block only declares what is actually used.
 	used map[string]bool
@@ -57,7 +71,7 @@ type aliasInfo struct {
 
 // NewTranspiler returns a transpiler bound to a source file.
 func NewTranspiler(p *tsmorph.Project, sf *tsmorph.SourceFile) *Transpiler {
-	return &Transpiler{tr: &transpiler{p: p, sf: sf, out: newGoWriter(), aliases: map[string]aliasInfo{}, used: map[string]bool{}}}
+	return &Transpiler{tr: &transpiler{p: p, sf: sf, out: newGoWriter(), aliases: map[string]aliasInfo{}, used: map[string]bool{}, emitShim: true, pkgName: "main"}}
 }
 
 // Transpiler is the public entry point.
@@ -65,6 +79,29 @@ type Transpiler struct {
 	tr     *transpiler
 	report *Report
 }
+
+// SetPackageContext shares cross-file knowledge with a multi-file package
+// driver: pkgDeclared is the union of top-level names across the files of
+// this file's Go package, and classify reports how a module specifier
+// imported from fromFile should be treated (same package, sibling package,
+// or external).
+func (t *Transpiler) SetPackageContext(pkgDeclared map[string]bool, classify func(fromFile, spec string) (importClass, string)) {
+	t.tr.pkgDeclared = pkgDeclared
+	t.tr.classify = classify
+}
+
+// SetEmitShim controls whether the jsrt async shim source is appended to
+// this file's output. Multi-file packages emit the shim once, in its own
+// file, so every file that references it sets this to false.
+func (t *Transpiler) SetEmitShim(v bool) { t.tr.emitShim = v }
+
+// SetPackageName sets the Go package clause written in the preamble
+// (default "main").
+func (t *Transpiler) SetPackageName(name string) { t.tr.pkgName = name }
+
+// UsedShim reports whether the emitted code references the jsrt async shim.
+// Valid after Transpile.
+func (t *Transpiler) UsedShim() bool { return t.tr.usedShim }
 
 // Transpile converts the source file to Go source text. It never aborts on
 // unsupported constructs: each gap is replaced by a compiling placeholder,
@@ -119,7 +156,7 @@ func (t *Transpiler) Transpile() (string, error) {
 	tr.out = saved
 	t.report = tr.buildReport(true)
 	src := pre.String() + body.String()
-	if tr.usedShim {
+	if tr.usedShim && tr.emitShim {
 		src += jsrtShim
 	}
 	return src, nil
@@ -514,8 +551,13 @@ func normalizeQuote(s string) string {
 
 // collectDeclared records every name declared at the top level so calls to
 // unknown identifiers can be flagged (they usually mean a module import the
-// LLM must wire up).
+// LLM must wire up). In multi-file mode the package-wide union is used, so
+// calls to symbols in sibling files resolve cleanly.
 func (tr *transpiler) collectDeclared() {
+	if tr.pkgDeclared != nil {
+		tr.declared = tr.pkgDeclared
+		return
+	}
 	tr.declared = map[string]bool{}
 	for _, stmt := range tr.sf.Statements() {
 		if n := stmt.Name(); n != "" {

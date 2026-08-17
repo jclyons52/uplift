@@ -22,7 +22,7 @@ func (tr *transpiler) emitPreamble() error {
 		}
 		tr.out.blank()
 	}
-	tr.out.line("package main")
+	tr.out.line("package " + tr.pkgName)
 	tr.out.blank()
 	var imports []string
 	for _, pkg := range []string{"fmt", "strings", "math", "maps", "strconv", "errors"} {
@@ -30,8 +30,10 @@ func (tr *transpiler) emitPreamble() error {
 			imports = append(imports, `"`+pkg+`"`)
 		}
 	}
-	if tr.usedShim {
-		// The shim source needs these; it is appended to the file.
+	if tr.usedShim && tr.emitShim {
+		// The shim source is appended to this file and needs these; when
+		// the shim lives in its own file (multi-file packages) it declares
+		// its own imports.
 		for _, pkg := range []string{"fmt", "sync", "time"} {
 			if !slices.Contains(imports, `"`+pkg+`"`) {
 				imports = append(imports, `"`+pkg+`"`)
@@ -67,12 +69,75 @@ func (tr *transpiler) transpileStatement(n tsmorph.Node, topLevel bool) error {
 		return tr.emitFunction(n)
 	case ast.IsVariableStatement(n.ASTNode()):
 		return tr.emitVariableStatement(n)
-	case ast.IsImportDeclaration(n.ASTNode()), ast.IsExportDeclaration(n.ASTNode()):
-		// Imports/exports map to nothing in v1 (single-package output).
-		return nil
+	case ast.IsImportDeclaration(n.ASTNode()):
+		return tr.handleImport(n)
+	case ast.IsExportDeclaration(n.ASTNode()):
+		return tr.handleExport(n)
 	default:
 		return tr.emitStatement(n)
 	}
+}
+
+// handleImport maps a TS import to nothing (Go packages have no import
+// statements for same-package files): imports that resolve to another file
+// of the same Go package are dropped — the identifiers resolve directly —
+// while imports of sibling packages and external modules become work items
+// the LLM must wire up.
+func (tr *transpiler) handleImport(n tsmorph.Node) error {
+	spec := tr.moduleSpecifier(n)
+	if spec == "" {
+		return nil
+	}
+	if tr.classify == nil {
+		return nil // single-file mode: imports were always dropped
+	}
+	cls, target := tr.classify(tr.sf.FilePath(), spec)
+	switch cls {
+	case importSamePackage:
+		return nil
+	case importSiblingPackage:
+		tr.recordGap(SevTodo, "import", n, "cross-package import %q — wire up the Go import (package %s)", spec, target)
+	default:
+		tr.recordGap(SevTodo, "import", n, "external module import %q — port or stub this module", spec)
+	}
+	return nil
+}
+
+// handleExport maps a TS export to nothing: exported names are already
+// emitted as exported Go identifiers (PascalCase). Re-exports from sibling
+// packages or external modules become work items.
+func (tr *transpiler) handleExport(n tsmorph.Node) error {
+	spec := tr.moduleSpecifier(n)
+	if spec == "" {
+		return nil
+	}
+	if tr.classify == nil {
+		return nil
+	}
+	cls, target := tr.classify(tr.sf.FilePath(), spec)
+	switch cls {
+	case importSamePackage:
+		return nil
+	case importSiblingPackage:
+		tr.recordGap(SevTodo, "import", n, "re-export from sibling package %q — wire up the Go import (package %s)", spec, target)
+	default:
+		tr.recordGap(SevTodo, "import", n, "re-export from external module %q — port or stub this module", spec)
+	}
+	return nil
+}
+
+// moduleSpecifier returns the module specifier text of an import/export
+// declaration, or "" when the declaration has none (e.g. `export { a }`).
+func (tr *transpiler) moduleSpecifier(n tsmorph.Node) string {
+	node := n.ASTNode()
+	if node == nil {
+		return ""
+	}
+	ms := ast.GetExternalModuleName(node)
+	if ms == nil {
+		return ""
+	}
+	return strings.Trim(ms.Text(), `"'`)
 }
 
 // ---------------------------------------------------------------------------
@@ -555,6 +620,11 @@ func (tr *transpiler) emitVariableStatement(n tsmorph.Node) error {
 				return err
 			}
 			switch {
+			case typ != "" && typ != "any" && strings.HasPrefix(expr, "any(nil)"):
+				// A placeholder can't initialize a typed var (`var p string
+				// = any(nil)` is not assignable); emit the declaration with
+				// the TODO as a trailing comment.
+				tr.out.line("var " + name + " " + typ + " " + placeholderComment(expr))
 			case typ != "" && typ != "any":
 				tr.out.line("var " + name + " " + typ + " = " + expr)
 			case !hasType && init.Type().IsNumber():

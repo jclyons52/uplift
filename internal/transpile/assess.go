@@ -16,6 +16,11 @@ type Report struct {
 	Items       []WorkItem // gaps, in source order
 	EmittedOK   bool       // whether transpilation completed
 	FatalErrors []string   // internal errors that aborted emission
+
+	// Files, when set, holds the per-file reports of a multi-file package;
+	// the fields above then describe the whole package (Items stays empty,
+	// Score/Complexity/BySeverity aggregate across the files).
+	Files []*Report
 }
 
 // Score sums the LLM-effort weights of all work items.
@@ -23,6 +28,9 @@ func (r *Report) Score() int {
 	s := 0
 	for _, it := range r.Items {
 		s += it.weight()
+	}
+	for _, f := range r.Files {
+		s += f.Score()
 	}
 	return s
 }
@@ -48,6 +56,11 @@ func (r *Report) BySeverity() map[Severity]int {
 	m := map[Severity]int{}
 	for _, it := range r.Items {
 		m[it.Severity]++
+	}
+	for _, f := range r.Files {
+		for sev, n := range f.BySeverity() {
+			m[sev] += n
+		}
 	}
 	return m
 }
@@ -75,8 +88,12 @@ func (r *Report) Manifest() string {
 }
 
 // String renders the full human-readable report (used by -dry-run and
-// -report output).
+// -report output). For a multi-file package it renders the aggregate header
+// plus one section per file.
 func (r *Report) String() string {
+	if len(r.Files) > 0 {
+		return r.stringPackage()
+	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "ts2go assessment: %s\n", r.Input)
 	fmt.Fprintf(&b, "  TS source:      %d lines, %d top-level declarations\n", r.TSLines, r.DeclCount)
@@ -90,19 +107,7 @@ func (r *Report) String() string {
 
 	if len(r.Items) > 0 {
 		b.WriteString("\n  Work items (grouped by line):\n")
-		items := append([]WorkItem(nil), r.Items...)
-		sort.SliceStable(items, func(i, j int) bool { return items[i].Line < items[j].Line })
-		for _, it := range items {
-			line := "-"
-			if it.Line > 0 {
-				line = fmt.Sprint(it.Line)
-			}
-			fmt.Fprintf(&b, "    %5s  [%-6s] %-12s %s", line, it.Severity, it.Category, it.Message)
-			if it.Snippet != "" {
-				fmt.Fprintf(&b, "  | %s", it.Snippet)
-			}
-			b.WriteString("\n")
-		}
+		renderItems(&b, r.Items, "    ")
 	}
 	if len(r.FatalErrors) > 0 {
 		b.WriteString("\n  Fatal errors:\n")
@@ -111,6 +116,57 @@ func (r *Report) String() string {
 		}
 	}
 	return b.String()
+}
+
+// stringPackage renders the aggregate package assessment with per-file
+// sections.
+func (r *Report) stringPackage() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "ts2go package assessment: %s\n", r.Input)
+	fmt.Fprintf(&b, "  TS source:      %d lines, %d top-level declarations across %d files\n",
+		r.TSLines, r.DeclCount, len(r.Files))
+	if !r.EmittedOK {
+		fmt.Fprintf(&b, "  EMISSION FAILED: %s\n", strings.Join(r.FatalErrors, "; "))
+	}
+	sev := r.BySeverity()
+	items := 0
+	for _, f := range r.Files {
+		items += len(f.Items)
+	}
+	fmt.Fprintf(&b, "  Work items:     %d (%d banned, %d todo, %d approx)\n",
+		items, sev[SevBanned], sev[SevTodo], sev[SevApprox])
+	fmt.Fprintf(&b, "  Complexity:     %s (score %d)\n", r.Complexity(), r.Score())
+	for _, f := range r.Files {
+		b.WriteString("\n  --- " + f.Input + " ---\n")
+		fmt.Fprintf(&b, "    %d lines, %d declarations, %d work items\n",
+			f.TSLines, f.DeclCount, len(f.Items))
+		if len(f.Items) > 0 {
+			renderItems(&b, f.Items, "      ")
+		}
+		if len(f.FatalErrors) > 0 {
+			for _, e := range f.FatalErrors {
+				fmt.Fprintf(&b, "      [error] %s\n", e)
+			}
+		}
+	}
+	return b.String()
+}
+
+// renderItems writes work items sorted by TS line.
+func renderItems(b *strings.Builder, items []WorkItem, indent string) {
+	sorted := append([]WorkItem(nil), items...)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Line < sorted[j].Line })
+	for _, it := range sorted {
+		line := "-"
+		if it.Line > 0 {
+			line = fmt.Sprint(it.Line)
+		}
+		fmt.Fprintf(b, "%s%5s  [%-6s] %-12s %s", indent, line, it.Severity, it.Category, it.Message)
+		if it.Snippet != "" {
+			fmt.Fprintf(b, "  | %s", it.Snippet)
+		}
+		b.WriteString("\n")
+	}
 }
 
 // baseName strips directories from a path for compact manifest lines.

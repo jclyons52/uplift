@@ -17,7 +17,26 @@ in an assessment report. The LLM gets its worklist handed to it — no hunting.
 ts2go src/app.ts              # write app.go + print assessment summary
 ts2go -dry-run src/app.ts     # assess only: complexity report, no output file
 ts2go -report r.txt src/app.ts # also write the full report to r.txt
+ts2go src/                    # multi-file: walk src/, one Go package per directory
+ts2go -o out/ -package mypkg src/  # direct output + root package name
 ```
+
+## Multi-file projects
+
+Point `ts2go` at a directory (or several files) and it transpiles the whole
+tree into Go, following Go's one-directory-one-package rule:
+
+- every `.ts` file becomes a `.go` file in the same relative location,
+  `package <dirname>` (root directory uses `-package` or the output dir name);
+- imports between files of the same directory are **dropped** — the
+  identifiers resolve directly in the shared Go package;
+- imports into a sibling directory become *"wire up the Go import"* work
+  items (the report names the target package);
+- node_modules / stdlib imports become *"port or stub"* work items;
+- the jsrt async shim is emitted **once** per package that uses it, as
+  `jsrt.go`, instead of being duplicated into every file;
+- the assessment report aggregates across all files with a per-file
+  breakdown.
 
 ## Why
 
