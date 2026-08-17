@@ -22,8 +22,26 @@ type transpiler struct {
 	aliases map[string]aliasInfo
 	// nextID allocates unique names for compiler-generated identifiers.
 	nextID int
-	// errors collects non-fatal diagnostics; fatal ones return directly.
-	errors []string
+	// items collects LLM work items (gaps) so the output never aborts on
+	// unsupported constructs; each gets a placeholder + report entry.
+	items []WorkItem
+	// fatal collects internal errors that prevented (parts of) emission.
+	fatal []string
+	// retStack tracks the enclosing function's Go return type so return
+	// expressions can be converted (e.g. string-union alias → string).
+	retStack []string
+	// inDeferred is > 0 while emitting a recover/finally handler, where
+	// `return expr` is not valid Go.
+	inDeferred int
+	// initBuf collects top-level expression statements, which are not valid
+	// at Go package scope; they are wrapped in a synthesized func init().
+	initBuf *goWriter
+	// declared holds names declared in this file; calls to identifiers
+	// outside it (module imports) are flagged as LLM work.
+	declared map[string]bool
+	// usedShim is set when the emitted code references the jsrt async
+	// shim; the shim source is appended and its imports declared.
+	usedShim bool
 	// used tracks which stdlib packages the emitted code references, so the
 	// import block only declares what is actually used.
 	used map[string]bool
@@ -32,6 +50,9 @@ type transpiler struct {
 type aliasInfo struct {
 	name   string // alias name as written (e.g. "uint8")
 	target string // resolved Go type (e.g. "uint8")
+	// unionValues is non-nil (possibly empty) when the alias is a union of
+	// string literals, emitted as a named string type + consts.
+	unionValues []string
 }
 
 // NewTranspiler returns a transpiler bound to a source file.
@@ -41,15 +62,17 @@ func NewTranspiler(p *tsmorph.Project, sf *tsmorph.SourceFile) *Transpiler {
 
 // Transpiler is the public entry point.
 type Transpiler struct {
-	tr *transpiler
+	tr     *transpiler
+	report *Report
 }
 
-// Transpile converts the source file to Go source text.
+// Transpile converts the source file to Go source text. It never aborts on
+// unsupported constructs: each gap is replaced by a compiling placeholder,
+// recorded in the embedded post-work manifest, and listed in Report().
 func (t *Transpiler) Transpile() (string, error) {
 	tr := t.tr
-	if err := banCheck(tr.sf); err != nil {
-		return "", err
-	}
+	tr.scanBans()
+	tr.collectDeclared()
 	if err := tr.collectAliases(); err != nil {
 		return "", err
 	}
@@ -58,16 +81,35 @@ func (t *Transpiler) Transpile() (string, error) {
 	body := newGoWriter()
 	saved := tr.out
 	tr.out = body
+	tr.initBuf = newGoWriter()
+	tr.initBuf.indent()
 	for _, stmt := range tr.sf.Statements() {
+		if ast.IsExpressionStatement(stmt.ASTNode()) {
+			// Top-level expression statements are invalid at Go package
+			// scope; route them into a synthesized func init().
+			exprOut := tr.out
+			tr.out = tr.initBuf
+			err := tr.emitStatement(stmt)
+			tr.out = exprOut
+			if err != nil {
+				tr.fatal = append(tr.fatal, fmt.Sprintf("line %d: %v", tr.lineOf(stmt), err))
+			}
+			continue
+		}
 		if err := tr.transpileStatement(stmt, false); err != nil {
-			tr.out = saved
-			return "", err
+			// Resilience: a failed statement becomes a TODO placeholder and
+			// the rest of the file still transpiles.
+			tr.fatal = append(tr.fatal, fmt.Sprintf("line %d: %v", tr.lineOf(stmt), err))
+			tr.emitTodoStatement(stmt, "transpilation error: %v", err)
 		}
 	}
-	tr.out = saved
-	if len(tr.errors) > 0 {
-		return "", fmt.Errorf("transpile errors:\n  %s", strings.Join(tr.errors, "\n  "))
+	if s := tr.initBuf.String(); s != "" {
+		body.line("func init() {")
+		body.raw(s)
+		body.line("}")
+		body.blank()
 	}
+	tr.out = saved
 	// Now emit the preamble (imports only what was used) and glue it on top.
 	pre := newGoWriter()
 	tr.out = pre
@@ -75,7 +117,40 @@ func (t *Transpiler) Transpile() (string, error) {
 		return "", err
 	}
 	tr.out = saved
-	return pre.String() + body.String(), nil
+	t.report = tr.buildReport(true)
+	src := pre.String() + body.String()
+	if tr.usedShim {
+		src += jsrtShim
+	}
+	return src, nil
+}
+
+// Assess runs the full transpilation purely to collect the post-work report
+// (dry-run mode); the generated source is discarded. Use after Transpile or
+// Assess to read the report.
+func (t *Transpiler) Assess() *Report {
+	_, _ = t.Transpile()
+	return t.Report()
+}
+
+// Report returns the post-work report from the last Transpile/Assess call.
+func (t *Transpiler) Report() *Report {
+	if t.report == nil {
+		t.report = t.tr.buildReport(true)
+	}
+	return t.report
+}
+
+func (tr *transpiler) buildReport(ok bool) *Report {
+	r := &Report{
+		Input:       tr.sf.FilePath(),
+		TSLines:     lineAt(tr.sf.Text(), len(tr.sf.Text())),
+		DeclCount:   len(tr.sf.Statements()),
+		Items:       append([]WorkItem(nil), tr.items...),
+		EmittedOK:   ok && len(tr.fatal) == 0,
+		FatalErrors: append([]string(nil), tr.fatal...),
+	}
+	return r
 }
 
 // ---------------------------------------------------------------------------
@@ -124,31 +199,54 @@ func (tr *transpiler) goType(n tsmorph.Node) (string, error) {
 
 // goTypeReference handles `Foo`, `Foo<T>`, `ns.Foo`.
 func (tr *transpiler) goTypeReference(n tsmorph.Node) (string, error) {
-	name := n.Text()
-	// Strip type arguments: `Vec3[]` handled elsewhere; `Array<T>` etc.
+	name := strings.TrimSpace(n.Text())
+	args := n.GetTypeArguments()
+	base := name
 	if i := strings.Index(name, "<"); i >= 0 {
-		base := name[:i]
-		args := name[i+1 : len(name)-1]
+		base = name[:i]
+	}
+	if len(args) > 0 {
+		// Convert each type argument recursively: `Record<string, Vec3[]>`
+		// must become `map[string][]Vec3`, not raw TS source text.
+		conv := make([]string, 0, len(args))
+		for _, a := range args {
+			t, err := tr.goType(a)
+			if err != nil {
+				return "", err
+			}
+			conv = append(conv, t)
+		}
 		// Generic alias: preserve the alias name, keep Go-style args.
 		if info, ok := tr.aliases[base]; ok {
-			return tr.applyTypeArgs(info, args), nil
+			return tr.applyTypeArgs(info, strings.Join(conv, ", ")), nil
 		}
 		switch base {
 		case "Array":
-			return "[]" + strings.TrimSpace(args), nil
+			return "[]" + conv[0], nil
 		case "Record":
-			return "map[" + strings.TrimSpace(args) + "]", nil
+			if len(conv) == 2 {
+				return "map[" + conv[0] + "]" + conv[1], nil
+			}
 		case "Promise":
-			return "any /* Promise<" + args + "> */", nil
+			// Promise<T> maps to the jsrt shim's promise type (the shim is
+			// appended to the output when referenced).
+			tr.usedShim = true
+			return "*jsrtPromise", nil
 		default:
-			return base + "[" + args + "]", nil
+			return base + "[" + strings.Join(conv, ", ") + "]", nil
 		}
+		return "any", nil
 	}
 	// Plain reference: alias (uint8 → uint8) or named type (Vec3 → Vec3).
-	if info, ok := tr.aliases[name]; ok {
+	if info, ok := tr.aliases[base]; ok {
+		if info.unionValues != nil {
+			// String-literal union alias: references resolve to the named
+			// string type emitted by emitTypeAlias.
+			return info.name, nil
+		}
 		return info.target, nil
 	}
-	return name, nil
+	return base, nil
 }
 
 // goUnionType handles `A | B | null | undefined`. Nullable members become
@@ -346,6 +444,11 @@ func (tr *transpiler) collectAliases() error {
 		if !ok {
 			continue
 		}
+		// String-literal unions become a named string type + consts.
+		if vals, isUnion := stringLiteralUnionValues(tn); isUnion {
+			tr.aliases[name] = aliasInfo{name: name, target: name, unionValues: vals}
+			continue
+		}
 		var target string
 		// The `uint8 = number` convention: the alias NAME selects the Go
 		// integer type; the RHS (`number`) is just TS syntax.
@@ -354,7 +457,7 @@ func (tr *transpiler) collectAliases() error {
 		} else {
 			t, err := tr.goType(tn)
 			if err != nil {
-				tr.errors = append(tr.errors, fmt.Sprintf("alias %s: %v", name, err))
+				tr.recordGap(SevTodo, "type", stmt, "alias %s: %v", name, err)
 				continue
 			}
 			target = t
@@ -365,6 +468,9 @@ func (tr *transpiler) collectAliases() error {
 	for i := 0; i < len(tr.aliases); i++ {
 		changed := false
 		for k, a := range tr.aliases {
+			if a.unionValues != nil {
+				continue
+			}
 			if t, ok := tr.aliases[strings.TrimSpace(a.target)]; ok && t.name != a.name {
 				tr.aliases[k] = aliasInfo{name: a.name, target: t.target}
 				changed = true
@@ -377,14 +483,58 @@ func (tr *transpiler) collectAliases() error {
 	return nil
 }
 
+// stringLiteralUnionValues reports whether a type node is a union of string
+// literals only (`"a" | "b"`) and returns the literal texts (quoted).
+func stringLiteralUnionValues(tn tsmorph.Node) ([]string, bool) {
+	if !ast.IsUnionTypeNode(tn.ASTNode()) {
+		return nil, false
+	}
+	var vals []string
+	for _, c := range tn.Children() {
+		if !ast.IsLiteralTypeNode(c.ASTNode()) {
+			return nil, false
+		}
+		t := strings.TrimSpace(c.Text())
+		if !strings.HasPrefix(t, `"`) && !strings.HasPrefix(t, `'`) {
+			return nil, false
+		}
+		vals = append(vals, normalizeQuote(t))
+	}
+	return vals, true
+}
+
+// normalizeQuote converts single-quoted literals to double-quoted so they are
+// valid Go string literals.
+func normalizeQuote(s string) string {
+	if len(s) >= 2 && s[0] == '\'' {
+		return `"` + strings.ReplaceAll(s[1:len(s)-1], `"`, `\"`) + `"`
+	}
+	return s
+}
+
+// collectDeclared records every name declared at the top level so calls to
+// unknown identifiers can be flagged (they usually mean a module import the
+// LLM must wire up).
+func (tr *transpiler) collectDeclared() {
+	tr.declared = map[string]bool{}
+	for _, stmt := range tr.sf.Statements() {
+		if n := stmt.Name(); n != "" {
+			tr.declared[n] = true
+		}
+		if vs, ok := stmt.AsVariableStatement(); ok {
+			for _, d := range vs.Declarations() {
+				if d.Name() != "" {
+					tr.declared[d.Name()] = true
+				}
+			}
+		}
+	}
+}
+
 // freshName returns a unique identifier.
 func (tr *transpiler) freshName(base string) string {
 	tr.nextID++
 	return fmt.Sprintf("%s_%d", base, tr.nextID)
-}
-
-func (tr *transpiler) warnf(format string, args ...any) {
-	tr.errors = append(tr.errors, fmt.Sprintf(format, args...))
 }
 
 // exportField converts a TS property name to an exported Go field name.

@@ -103,18 +103,270 @@ func TestBanList(t *testing.T) {
 class Foo {
   method() {
     Object.setPrototypeOf(this, Foo.prototype);
-    return eval("1+1");
+    const x = eval("1+1");
+    return x;
   }
 }
 `)
 	tp := NewTranspiler(p, sf)
-	_, err := tp.Transpile()
-	if err == nil {
-		t.Fatal("expected ban error for prototype manipulation")
+	out, err := tp.Transpile()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(err.Error(), "banned") {
-		t.Fatalf("expected banned-construct error, got: %v", err)
+	// Bans no longer abort: they become placeholders + report items.
+	r := tp.Report()
+	var banned int
+	for _, it := range r.Items {
+		if it.Severity == SevBanned {
+			banned++
+		}
 	}
+	if banned < 2 {
+		t.Fatalf("expected banned items in report, got: %s", r.String())
+	}
+	if !strings.Contains(out, "TODO(ts2go)") {
+		t.Errorf("expected placeholders in output:\n%s", out)
+	}
+	compileGo(t, "banned.go", out)
+}
+
+func TestReportAndPlaceholders(t *testing.T) {
+	p, _ := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
+	sf := p.CreateSourceFile("/gaps.ts", `
+function gaps(s: string): string {
+  delete (globalThis as any).x;
+  return s.substring(0, 3);
+}
+`)
+	tp := NewTranspiler(p, sf)
+	out, err := tp.Transpile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := tp.Report()
+	if r.Complexity() == "TRIVIAL" {
+		t.Errorf("expected non-trivial complexity, report:\n%s", r.String())
+	}
+	// Manifest embedded in the generated file.
+	if !strings.Contains(out, "ts2go post-work manifest") {
+		t.Errorf("output missing manifest:\n%s", out)
+	}
+	compileGo(t, "gaps.go", out)
+}
+
+func TestEnumValues(t *testing.T) {
+	p, _ := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
+	sf := p.CreateSourceFile("/e.ts", `
+enum Kind { A, B = 5, C }
+`)
+	tp := NewTranspiler(p, sf)
+	out, err := tp.Transpile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"KindA Kind = 0",
+		"KindB Kind = 5",
+		"KindC Kind = 6",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+	compileGo(t, "e.go", out)
+}
+
+func TestStringLiteralUnion(t *testing.T) {
+	p, _ := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
+	sf := p.CreateSourceFile("/u.ts", `
+type Status = "active" | "in-progress" | "closed";
+function label(s: Status): string {
+  return s;
+}
+`)
+	tp := NewTranspiler(p, sf)
+	out, err := tp.Transpile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"type Status string",
+		"StatusActive Status = \"active\"",
+		"StatusInProgress Status = \"in-progress\"",
+		"StatusClosed Status = \"closed\"",
+		"func label(s Status) string",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+	compileGo(t, "u.go", out)
+}
+
+func TestRecursiveTypeArgs(t *testing.T) {
+	p, _ := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
+	sf := p.CreateSourceFile("/r.ts", `
+function f(m: Record<string, number[]>, a: Array<string>): number {
+  return m["a"].length + a.length;
+}
+`)
+	tp := NewTranspiler(p, sf)
+	out, err := tp.Transpile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "m map[string][]float64") {
+		t.Errorf("Record<string, number[]> not converted recursively:\n%s", out)
+	}
+	if !strings.Contains(out, "a []string") {
+		t.Errorf("Array<string> not converted:\n%s", out)
+	}
+	compileGo(t, "r.go", out)
+}
+
+func TestArrayMethods(t *testing.T) {
+	p, _ := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
+	sf := p.CreateSourceFile("/m.ts", `
+function sum(xs: number[]): number {
+  return xs.reduce((acc, x) => acc + x, 0);
+}
+function doubles(xs: number[]): number[] {
+  return xs.map(x => x * 2);
+}
+function evens(xs: number[]): number[] {
+  return xs.filter(x => x % 2 === 0);
+}
+function logAll(xs: number[]): void {
+  xs.forEach(x => console.log(x));
+}
+`)
+	tp := NewTranspiler(p, sf)
+	out, err := tp.Transpile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	compileGo(t, "m.go", out)
+	for _, want := range []string{"for _, x := range", "append("} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+}
+
+// runGo compiles generated code with an appended main() harness and returns
+// its stdout — verifies runtime behavior, not just compilation.
+func runGo(t *testing.T, name, src, mainFn string) string {
+	t.Helper()
+	dir := t.TempDir()
+	src = strings.Replace(src, "package main", "package main", 1)
+	src += "\nfunc main() {\n" + mainFn + "\n}\n"
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module ts2gorun\n\ngo 1.26.5\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("go", "run", ".")
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GOWORK=off")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated Go does not run:\n%s\n--- generated source ---\n%s", out, src)
+	}
+	return string(out)
+}
+
+func TestAsyncShim(t *testing.T) {
+	p, _ := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
+	sf := p.CreateSourceFile("/a.ts", `
+async function greet(name: string): Promise<string> {
+  return "hi " + name;
+}
+
+async function demo(): Promise<string> {
+  const g = await greet("bob");
+  const both = await Promise.all([greet("a"), greet("b")]);
+  return g + " " + String(both);
+}
+
+function plain(x: number): number { return x * 2; }
+`)
+	tp := NewTranspiler(p, sf)
+	out, err := tp.Transpile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"func greet(name string) *jsrtPromise",
+		"return jsrtAsync(func() any {",
+		"jsrtAwait(greet(\"bob\"))",
+		"jsrtAll(greet(\"a\"), greet(\"b\"))",
+		"type jsrtPromise struct",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q:\n%s", want, out)
+		}
+	}
+	compileGo(t, "a.go", out)
+
+	// Execute: the shim must actually run the async flow.
+	got := runGo(t, "a.go", out, `p := demo(); fmt.Println(jsrtAwait(p))`)
+	if want := "hi bob [hi a hi b]"; strings.TrimSpace(got) != want {
+		t.Errorf("runtime output = %q, want %q", got, want)
+	}
+}
+
+func TestAsyncRejection(t *testing.T) {
+	p, _ := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
+	sf := p.CreateSourceFile("/r.ts", `
+async function boom(): Promise<number> {
+  throw new Error("kaput");
+}
+`)
+	tp := NewTranspiler(p, sf)
+	out, err := tp.Transpile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	compileGo(t, "r.go", out)
+	// A throw inside an async body must reject the promise, not crash.
+	got := runGo(t, "r.go", out, `
+p := boom()
+jsrtRun()
+if p.err != nil {
+	fmt.Println("rejected:", p.err)
+} else {
+	fmt.Println("resolved:", p.val)
+}`)
+	if want := "rejected: kaput"; !strings.HasPrefix(strings.TrimSpace(got), want) {
+		t.Errorf("runtime output = %q, want prefix %q", got, want)
+	}
+}
+
+func TestTryCatchBinding(t *testing.T) {
+	p, _ := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
+	sf := p.CreateSourceFile("/t.ts", `
+function guard(): string {
+  try {
+    return risky();
+  } catch (e) {
+    return "fallback";
+  } finally {
+    cleanup();
+  }
+}
+function risky(): string { return "ok"; }
+function cleanup(): void {}
+`)
+	tp := NewTranspiler(p, sf)
+	out, err := tp.Transpile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "e := r") {
+		t.Errorf("catch binding not emitted:\n%s", out)
+	}
+	compileGo(t, "t.go", out)
 }
 
 func TestSimpleFunction(t *testing.T) {

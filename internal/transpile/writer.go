@@ -29,8 +29,18 @@ func (w *goWriter) blank() {
 	w.atBOL = true
 }
 
-func (w *goWriter) indent()  { w.ind++ }
-func (w *goWriter) dedent()  { if w.ind > 0 { w.ind-- } }
+// raw appends pre-formatted (already indented) text.
+func (w *goWriter) raw(s string) {
+	w.b.WriteString(s)
+	w.atBOL = true
+}
+
+func (w *goWriter) indent() { w.ind++ }
+func (w *goWriter) dedent() {
+	if w.ind > 0 {
+		w.ind--
+	}
+}
 func (w *goWriter) String() string { return w.b.String() }
 
 func (w *goWriter) block(open string, fn func()) {

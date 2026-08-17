@@ -12,6 +12,42 @@ import (
 // Statements (function bodies)
 // ---------------------------------------------------------------------------
 
+// variableDeclExpr renders `let i = 0` (for-loop initializers and other
+// expression-position declarations) as `i := 0`, typed float64 when the
+// initializer is a number so arithmetic with other numbers type-checks.
+func (tr *transpiler) variableDeclExpr(n tsmorph.Node) (string, error) {
+	var decls []tsmorph.Node
+	if ast.IsVariableDeclaration(n.ASTNode()) {
+		decls = []tsmorph.Node{n}
+	} else {
+		for _, c := range n.Children() {
+			if ast.IsVariableDeclaration(c.ASTNode()) {
+				decls = append(decls, c)
+			}
+		}
+	}
+	var parts []string
+	for _, dn := range decls {
+		d, _ := dn.AsVariableDeclaration()
+		name := d.Name()
+		init, ok := d.Initializer()
+		if !ok {
+			parts = append(parts, "var "+name+" any")
+			continue
+		}
+		s, err := tr.emitExpr(init)
+		if err != nil {
+			return "", err
+		}
+		if _, hasType := d.TypeNode(); !hasType && init.Type().IsNumber() {
+			parts = append(parts, "var "+name+" float64 = "+s)
+			continue
+		}
+		parts = append(parts, name+" := "+s)
+	}
+	return strings.Join(parts, ", "), nil
+}
+
 // emitBlock emits a `{ ... }` block's statements at the current indent.
 func (tr *transpiler) emitBlock(n tsmorph.Node) error {
 	for _, s := range n.GetStatements() {
@@ -34,7 +70,20 @@ func (tr *transpiler) emitStatement(n tsmorph.Node) error {
 			if err != nil {
 				return err
 			}
+			s = tr.convertReturnExpr(e, s)
 			expr = " " + s
+		}
+		if tr.inDeferred > 0 {
+			// Inside a recover/finally/try-IIFE a `return expr` cannot carry
+			// a value; discard it — the caller cannot restructure the
+			// enclosing function mechanically.
+			if expr != "" {
+				tr.recordGap(SevTodo, "errors", n, "return inside try/catch: value discarded; restructure function (named result)")
+				tr.out.line("_ =" + expr)
+			} else {
+				tr.out.line("return")
+			}
+			return nil
 		}
 		tr.out.line("return" + expr)
 		return nil
@@ -62,8 +111,12 @@ func (tr *transpiler) emitStatement(n tsmorph.Node) error {
 		if !ok {
 			return nil
 		}
-		// `arr.push(x)` in statement position → `arr = append(arr, x)`.
+		// `.forEach(cb)` in statement position → inline for-range loop.
 		if ast.IsCallExpression(e.ASTNode()) {
+			if handled, err := tr.emitForEachStatement(e); handled {
+				return err
+			}
+			// `arr.push(x)` in statement position → `arr = append(arr, x)`.
 			if s, handled, err := tr.pushStatement(e); handled {
 				if err != nil {
 					return err
@@ -75,6 +128,11 @@ func (tr *transpiler) emitStatement(n tsmorph.Node) error {
 		s, err := tr.emitExpr(e)
 		if err != nil {
 			return err
+		}
+		// A bare placeholder expression is not a valid Go statement — bind
+		// it to blank.
+		if strings.HasPrefix(s, "any(nil)") {
+			s = "_ = " + s
 		}
 		if s != "" {
 			tr.out.line(s)
@@ -110,7 +168,10 @@ func (tr *transpiler) emitStatement(n tsmorph.Node) error {
 	case ast.IsEmptyStatement(n.ASTNode()):
 		return nil
 	default:
-		return fmt.Errorf("unsupported statement %s at %q", n.KindName(), snippet(n))
+		// Resilience: unsupported statements become TODO placeholders so
+		// the rest of the file still transpiles and compiles.
+		tr.emitTodoStatement(n, "unsupported statement %s", n.KindName())
+		return nil
 	}
 }
 
@@ -151,7 +212,7 @@ func (tr *transpiler) emitIfStatement(n tsmorph.Node) error {
 	if !ok {
 		return fmt.Errorf("if without then")
 	}
-	tr.out.line("if " + cs + " {")
+	tr.out.line("if " + condExpr(cs) + " {")
 	tr.out.indent()
 	if ast.IsBlock(thenNode.ASTNode()) {
 		if err := tr.emitBlock(thenNode); err != nil {
@@ -204,7 +265,7 @@ func (tr *transpiler) emitForStatement(n tsmorph.Node) error {
 		if err != nil {
 			return err
 		}
-		condStr = s
+		condStr = condExpr(s)
 	} else {
 		condStr = "true"
 	}
@@ -314,7 +375,7 @@ func (tr *transpiler) emitWhileStatement(n tsmorph.Node) error {
 	if !ok {
 		return fmt.Errorf("while without body")
 	}
-	tr.out.line("for " + cs + " {")
+	tr.out.line("for " + condExpr(cs) + " {")
 	tr.out.indent()
 	if ast.IsBlock(body.ASTNode()) {
 		if err := tr.emitBlock(body); err != nil {
@@ -355,7 +416,7 @@ func (tr *transpiler) emitDoStatement(n tsmorph.Node) error {
 			return err
 		}
 	}
-	tr.out.line("if !(" + cs + ") { break }")
+	tr.out.line("if !(" + condExpr(cs) + ") { break }")
 	tr.out.dedent()
 	tr.out.line("}")
 	return nil
@@ -413,28 +474,69 @@ func (tr *transpiler) emitSwitchStatement(n tsmorph.Node) error {
 	return nil
 }
 
+// emitTryStatement maps try/catch/finally to an IIFE with defer/recover.
+// The catch binding (if any) is bound to the recovered value; the catch
+// block is emitted inside the recover handler, which cannot return from the
+// enclosing function — flagged as approx for the LLM to verify.
 func (tr *transpiler) emitTryStatement(n tsmorph.Node) error {
 	ts, _ := n.AsTryStatement()
 	tryBlock, ok := ts.TryBlock()
 	if !ok {
 		return fmt.Errorf("try without block")
 	}
+	tr.recordGap(SevApprox, "errors", n, "try/catch via recover: catch body cannot return a value")
+
 	tr.out.line("func() {")
 	tr.out.indent()
 	tr.out.line("defer func() {")
 	tr.out.indent()
 	tr.out.line("if r := recover(); r != nil {")
 	tr.out.indent()
-	tr.out.line("_ = r // caught exception mapped to recover()")
+	tr.inDeferred++
+	if cc, hasCatch := ts.CatchClause(); hasCatch {
+		bind := "err"
+		if vd, ok := cc.VariableDeclaration(); ok && vd.Name() != "" {
+			bind = vd.Name()
+		}
+		tr.out.line(bind + " := r")
+		tr.out.line("_ = " + bind)
+		if cb, ok := cc.Block(); ok {
+			if err := tr.emitBlock(cb.Node); err != nil {
+				tr.inDeferred--
+				return err
+			}
+		}
+	} else {
+		tr.out.line("_ = r")
+	}
+	tr.inDeferred--
 	tr.out.dedent()
 	tr.out.line("}")
 	tr.out.dedent()
 	tr.out.line("}()")
-	if err := tr.emitBlock(tryBlock.Node); err != nil {
-		return err
+	tr.inDeferred++
+	tryErr := tr.emitBlock(tryBlock.Node)
+	tr.inDeferred--
+	if tryErr != nil {
+		return tryErr
+	}
+	if fb, hasFinally := ts.FinallyBlock(); hasFinally {
+		tr.recordGap(SevApprox, "errors", fb.Node, "finally block: emitted after try body (runs even on panic via defer — verify placement)")
+		tr.inDeferred++
+		err := tr.emitBlock(fb.Node)
+		tr.inDeferred--
+		if err != nil {
+			return err
+		}
 	}
 	tr.out.dedent()
 	tr.out.line("}()")
+	// If the enclosing function returns a value and the try consumed its
+	// returns, Go needs an endpoint: panic marks it unreachable-ish and
+	// compiles. The LLM restructures per the recorded TODO.
+	if len(tr.retStack) > 0 && tr.retStack[len(tr.retStack)-1] != "" {
+		tr.out.line(`panic("ts2go: TODO: restructure try/catch returns")`)
+	}
 	return nil
 }
 
@@ -462,9 +564,10 @@ func (tr *transpiler) emitExpr(n tsmorph.Node) (string, error) {
 	case k == ast.KindNullKeyword:
 		return "nil", nil
 	case k == ast.KindThisKeyword:
-		return "r", nil // receiver name in methods
+		return "r", nil // receiver name in methods (correct for arrow captures)
 	case k == ast.KindSuperKeyword:
-		return "", nil
+		tr.recordGap(SevTodo, "inheritance", n, "super call needs manual dispatch to embedded type")
+		return placeholderExpr("super"), nil
 	case ast.IsPropertyAccessExpression(n.ASTNode()):
 		return tr.propertyAccess(n)
 	case ast.IsElementAccessExpression(n.ASTNode()):
@@ -489,6 +592,8 @@ func (tr *transpiler) emitExpr(n tsmorph.Node) (string, error) {
 			return "", err
 		}
 		return "(" + s + ")", nil
+	case ast.IsVariableDeclarationList(n.ASTNode()), ast.IsVariableDeclaration(n.ASTNode()):
+		return tr.variableDeclExpr(n)
 	case ast.IsConditionalExpression(n.ASTNode()):
 		return tr.conditionalExpression(n)
 	case ast.IsArrayLiteralExpression(n.ASTNode()):
@@ -510,17 +615,48 @@ func (tr *transpiler) emitExpr(n tsmorph.Node) (string, error) {
 		return "", nil
 	case ast.IsTypeOfExpression(n.ASTNode()):
 		return tr.typeOfExpression(n)
+	case ast.IsAwaitExpression(n.ASTNode()):
+		return tr.awaitExpression(n)
 	default:
-		return "", fmt.Errorf("unsupported expression %s at %q", n.KindName(), snippet(n))
+		// Resilience: unsupported expressions become a compiling `any(nil)`
+		// placeholder with an inline TODO; a report entry is recorded.
+		return tr.todoExpr(n, "unsupported expression %s", n.KindName()), nil
 	}
+}
+
+// awaitExpression maps `await e` to jsrtAwait — the shim parks the current
+// async-call goroutine until the promise settles. (Inside the wrapper the
+// whole body already runs on its own goroutine.)
+func (tr *transpiler) awaitExpression(n tsmorph.Node) (string, error) {
+	inner, ok := n.GetExpression()
+	if !ok {
+		return placeholderExpr("await with no operand"), nil
+	}
+	s, err := tr.emitExpr(inner)
+	if err != nil {
+		return "", err
+	}
+	tr.usedShim = true
+	tr.recordGap(SevApprox, "async", n, "await via jsrt shim (blocks the async-call goroutine)")
+	return "jsrtAwait(" + s + ")", nil
 }
 
 // identifier maps TS identifiers; reserved words get a trailing underscore.
 func (tr *transpiler) identifier(n tsmorph.Node) string {
 	name := n.Text()
 	switch name {
-	case "undefined", "NaN", "Infinity":
-		return "0" // conservative zero mapping; callers may special-case
+	case "undefined":
+		// nil works for pointer/slice/map/interface/any contexts; numeric
+		// contexts need a zero value — flagged so the LLM checks.
+		tr.recordGap(SevApprox, "literal", n, "undefined mapped to nil")
+		return "nil"
+	case "NaN":
+		tr.used["math"] = true
+		return "math.NaN()"
+	case "Infinity":
+		tr.used["math"] = true
+		tr.recordGap(SevApprox, "literal", n, "Infinity mapped to math.Inf(1)")
+		return "math.Inf(1)"
 	case "Math":
 		return "math"
 	}
@@ -553,14 +689,28 @@ func (tr *transpiler) propertyAccess(n tsmorph.Node) (string, error) {
 		return "", err
 	}
 	propS := prop.Text()
+	// Property access on `any` cannot compile in Go — flag for the LLM.
+	if t := obj.Type(); !t.IsUnknown() && t.IsAny() {
+		tr.recordGap(SevTodo, "dynamic", n, "dynamic property access %s.%s on any", objS, propS)
+		return placeholderExpr(objS + "." + propS), nil
+	}
 	switch propS {
 	case "length":
-		return "len(" + objS + ")", nil
+		// TS `.length` is a number (→ float64); Go len() is int. Wrap so
+		// arithmetic with other numbers type-checks.
+		return "float64(len(" + objS + "))", nil
 	case "toString":
 		tr.used["fmt"] = true
 		return "fmt.Sprint(" + objS + ")", nil
 	case "push":
 		return "append", nil
+	}
+	// Optional chaining (`a?.b`) loses its short-circuit in Go; flag it.
+	for _, c := range n.Children() {
+		if c.Kind() == ast.KindQuestionDotToken {
+			tr.recordGap(SevApprox, "optional", n, "optional chaining %s?.%s emitted as direct access", objS, propS)
+			break
+		}
 	}
 	return objS + "." + exportField(propS), nil
 }
@@ -583,6 +733,11 @@ func (tr *transpiler) elementAccess(n tsmorph.Node) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Indexing an `any` cannot compile in Go — flag for the LLM.
+	if t := obj.Type(); !t.IsUnknown() && t.IsAny() {
+		tr.recordGap(SevTodo, "dynamic", n, "dynamic element access %s[%s] on any", objS, idxS)
+		return placeholderExpr(objS + "[" + idxS + "]"), nil
+	}
 	return objS + "[" + idxS + "]", nil
 }
 
@@ -591,15 +746,40 @@ func (tr *transpiler) callExpression(n tsmorph.Node) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("call without callee")
 	}
+	// Banned callees (eval, Object.create, ...): placeholder + TODO. The
+	// gap itself was already recorded by scanBans.
+	if bannedCallee(n) {
+		return placeholderExpr("banned: " + callee.Text()), nil
+	}
+	// `.map`/`.filter`/`.reduce` with a callback → loop-based IIFE.
+	if ast.IsPropertyAccessExpression(callee.ASTNode()) {
+		if s, handled, err := tr.arrayMethodCall(n); handled {
+			return s, err
+		}
+	}
 	// Special forms first.
 	if ast.IsPropertyAccessExpression(callee.ASTNode()) {
 		if s, handled, err := tr.callSpecial(n, callee); handled {
 			return s, err
 		}
 	}
+	// Identifier-callee builtins (parseFloat(x), isNaN(x), ...).
+	if ast.IsIdentifier(callee.ASTNode()) {
+		if s, handled := tr.identifierCall(n, callee.Text()); handled {
+			return s, nil
+		}
+		if !tr.declared[callee.Text()] {
+			tr.recordGap(SevTodo, "module", n, "call to %s: not defined in this file — wire up the Go equivalent/import", callee.Text())
+		}
+	}
 	calleeS, err := tr.emitExpr(callee)
 	if err != nil {
 		return "", err
+	}
+	if strings.HasPrefix(calleeS, "any(nil)") {
+		// Calling a placeholder (e.g. property access on any) cannot
+		// compile; collapse to a placeholder for the whole call.
+		return placeholderExpr("call"), nil
 	}
 	args, err := tr.emitArgs(n.GetArguments())
 	if err != nil {
@@ -608,8 +788,45 @@ func (tr *transpiler) callExpression(n tsmorph.Node) (string, error) {
 	return calleeS + "(" + args + ")", nil
 }
 
+// identifierCall maps TS global function calls to Go equivalents.
+func (tr *transpiler) identifierCall(n tsmorph.Node, name string) (string, bool) {
+	args, err := tr.emitArgs(n.GetArguments())
+	if err != nil {
+		return "", false
+	}
+	switch name {
+	case "parseFloat":
+		tr.used["strconv"] = true
+		return "func() float64 { v, _ := strconv.ParseFloat(" + args + ", 64); return v }()", true
+	case "parseInt":
+		tr.used["strconv"] = true
+		return "func() int64 { v, _ := strconv.ParseInt(" + args + ", 10, 64); return v }()", true
+	case "isNaN":
+		tr.used["math"] = true
+		return "math.IsNaN(" + args + ")", true
+	case "isFinite":
+		tr.used["math"] = true
+		return "func() bool { return !math.IsInf(" + args + ", 0) }()", true
+	case "String":
+		tr.used["fmt"] = true
+		return "fmt.Sprint(" + args + ")", true
+	case "setTimeout":
+		// setTimeout(cb, ms) → jsrtSetTimeout(ms, cb) (arg order swap).
+		if raw := n.GetArguments(); len(raw) >= 2 {
+			cb, err1 := tr.emitExpr(raw[0])
+			ms, err2 := tr.emitExpr(raw[1])
+			if err1 == nil && err2 == nil {
+				tr.usedShim = true
+				return "jsrtSetTimeout(" + ms + ", " + cb + ")", true
+			}
+		}
+		return placeholderExpr("setTimeout"), true
+	}
+	return "", false
+}
+
 // callSpecial handles `arr.push(x)` → `append(arr, x)`, `console.log(...)`
-// → `fmt.Println(...)`, and bans prototype-level tricks.
+// → `fmt.Println(...)`, string method mappings, and banned calls.
 func (tr *transpiler) callSpecial(n, callee tsmorph.Node) (string, bool, error) {
 	obj, _ := callee.GetExpression()
 	prop, _ := callee.GetNameNode()
@@ -618,17 +835,31 @@ func (tr *transpiler) callSpecial(n, callee tsmorph.Node) (string, bool, error) 
 		return "", true, err
 	}
 	propS := prop.Text()
-	args, err := tr.emitArgs(n.GetArguments())
-	if err != nil {
-		return "", true, err
+	args := n.GetArguments()
+	argStrs := make([]string, 0, len(args))
+	for _, a := range args {
+		s, err := tr.emitExpr(a)
+		if err != nil {
+			return "", true, err
+		}
+		argStrs = append(argStrs, s)
 	}
+	argsJ := strings.Join(argStrs, ", ")
 	switch propS {
 	case "push":
-		return "append(" + objS + ", " + args + ")", true, nil
+		return "append(" + objS + ", " + argsJ + ")", true, nil
 	case "log", "error", "warn", "info":
-		return "fmt.Println(" + args + ")", true, nil
+		tr.used["fmt"] = true
+		return "fmt.Println(" + argsJ + ")", true, nil
 	case "substring", "substr", "slice":
-		return objS + "[" + args + "]", true, nil
+		// s.substring(a) → s[a:]; s.substring(a, b) → s[a:b]
+		switch len(argStrs) {
+		case 1:
+			return objS + "[" + argStrs[0] + ":]", true, nil
+		case 2:
+			return objS + "[" + argStrs[0] + ":" + argStrs[1] + "]", true, nil
+		}
+		return placeholderExpr("TODO(ts2go): " + propS), true, nil
 	case "toUpperCase":
 		tr.used["strings"] = true
 		return "strings.ToUpper(" + objS + ")", true, nil
@@ -640,28 +871,68 @@ func (tr *transpiler) callSpecial(n, callee tsmorph.Node) (string, bool, error) 
 		return "strings.TrimSpace(" + objS + ")", true, nil
 	case "includes":
 		tr.used["strings"] = true
-		return "strings.Contains(" + objS + ", " + args + ")", true, nil
+		return "strings.Contains(" + objS + ", " + argsJ + ")", true, nil
 	case "startsWith":
 		tr.used["strings"] = true
-		return "strings.HasPrefix(" + objS + ", " + args + ")", true, nil
+		return "strings.HasPrefix(" + objS + ", " + argsJ + ")", true, nil
 	case "endsWith":
 		tr.used["strings"] = true
-		return "strings.HasSuffix(" + objS + ", " + args + ")", true, nil
+		return "strings.HasSuffix(" + objS + ", " + argsJ + ")", true, nil
 	case "join":
 		tr.used["strings"] = true
-		return "strings.Join(" + objS + ", " + args + ")", true, nil
-	case "parseInt", "parseFloat", "Number":
-		return args, true, nil
+		return "strings.Join(" + objS + ", " + argsJ + ")", true, nil
+	case "parseInt":
+		tr.used["strconv"] = true
+		if len(argStrs) == 1 {
+			return "func() int64 { v, _ := strconv.ParseInt(" + argStrs[0] + ", 10, 64); return v }()", true, nil
+		}
+		return placeholderExpr("TODO(ts2go): parseInt with radix"), true, nil
+	case "parseFloat":
+		tr.used["strconv"] = true
+		return "func() float64 { v, _ := strconv.ParseFloat(" + strings.Join(argStrs, ", ") + ", 64); return v }()", true, nil
+	case "Number":
+		tr.used["strconv"] = true
+		tr.recordGap(SevApprox, "conversion", n, "Number(x) mapped to strconv.ParseFloat — verify")
+		return "func() float64 { v, _ := strconv.ParseFloat(" + argsJ + ", 64); return v }()", true, nil
 	case "String":
 		tr.used["fmt"] = true
-		return "fmt.Sprint(" + args + ")", true, nil
+		return "fmt.Sprint(" + argsJ + ")", true, nil
 	}
-	// Banned prototype-level tricks.
+	// Promise static methods → jsrt shim.
+	if objS == "Promise" {
+		switch propS {
+		case "resolve":
+			tr.usedShim = true
+			return "jsrtResolve(" + argsJ + ")", true, nil
+		case "reject":
+			tr.usedShim = true
+			tr.used["fmt"] = true
+			return "jsrtReject(fmt.Errorf(\"%v\", " + argsJ + "))", true, nil
+		case "all":
+			tr.usedShim = true
+			if len(args) == 1 && ast.IsArrayLiteralExpression(args[0].ASTNode()) {
+				al, _ := args[0].AsArrayLiteralExpression()
+				var elems []string
+				for _, e := range al.GetElements() {
+					s, err := tr.emitExpr(e)
+					if err != nil {
+						return "", true, err
+					}
+					elems = append(elems, s)
+				}
+				return "jsrtAll(" + strings.Join(elems, ", ") + ")", true, nil
+			}
+			tr.recordGap(SevTodo, "async", n, "Promise.all with non-literal array needs manual spread")
+			return placeholderExpr("Promise.all"), true, nil
+		case "then", "catch", "finally":
+			tr.recordGap(SevTodo, "async", n, "promise.%s: rewrite as await (jsrt shim has no continuation chains)", propS)
+			return placeholderExpr("promise." + propS), true, nil
+		}
+	}
+	// Banned prototype-level tricks (also flagged by scanBans).
 	full := objS + "." + propS
-	switch full {
-	case "Object.create", "Object.setPrototypeOf", "Reflect.setPrototypeOf",
-		"Reflect.construct", "Reflect.apply", "Proxy":
-		return "", true, fmt.Errorf("banned: %s (prototype/dynamic-dispatch mechanism)", full)
+	if _, bad := bannedCalls[full]; bad {
+		return placeholderExpr("banned: " + full), true, nil
 	}
 	return "", false, nil
 }
@@ -679,6 +950,24 @@ func (tr *transpiler) newExpression(n tsmorph.Node) (string, error) {
 	callee := expr.Name()
 	if callee == "" {
 		callee = expr.Text()
+	}
+	// `new Error(msg)` → errors/fmt constructors.
+	if callee == "Error" {
+		if len(ne.GetArguments()) == 1 && ast.IsStringLiteral(ne.GetArguments()[0].ASTNode()) {
+			tr.used["errors"] = true
+			return "errors.New(" + args + ")", nil
+		}
+		tr.used["fmt"] = true
+		tr.recordGap(SevApprox, "errors", n, "new Error mapped to fmt.Errorf (no stack/message semantics)")
+		return "fmt.Errorf(\"%v\", " + args + ")", nil
+	}
+	if callee == "Map" {
+		tr.recordGap(SevTodo, "dynamic", n, "new Map(...) needs explicit Go map type and methods")
+		return placeholderExpr("new Map"), nil
+	}
+	if callee == "Set" {
+		tr.recordGap(SevTodo, "dynamic", n, "new Set(...) needs map[T]struct{} or a set library")
+		return placeholderExpr("new Set"), nil
 	}
 	return "New" + callee + "(" + args + ")", nil
 }
@@ -719,6 +1008,12 @@ func (tr *transpiler) binaryExpression(n tsmorph.Node) (string, error) {
 	case "**":
 		tr.used["math"] = true
 		return "math.Pow(" + ls + ", " + rs + ")", nil
+	case "%":
+		if tr.isFloatType(left) || tr.isFloatType(right) {
+			tr.used["math"] = true
+			return "math.Mod(" + ls + ", " + rs + ")", nil
+		}
+		return ls + " % " + rs, nil
 	case "+":
 		if tr.isStringType(left) || tr.isStringType(right) {
 			tr.used["fmt"] = true
@@ -726,9 +1021,11 @@ func (tr *transpiler) binaryExpression(n tsmorph.Node) (string, error) {
 		}
 		return ls + " + " + rs, nil
 	case "instanceof":
-		return "", fmt.Errorf("instanceof is banned: use type switches in Go")
+		tr.recordGap(SevTodo, "dynamic", n, "instanceof needs a manual type assertion/type switch")
+		return placeholderExpr("instanceof"), nil
 	case "in":
-		return "", fmt.Errorf("'in' operator is banned: use map lookups in Go")
+		tr.recordGap(SevTodo, "dynamic", n, "'in' operator needs a map lookup or type switch")
+		return placeholderExpr("in-operator"), nil
 	default:
 		return ls + " " + op + " " + rs, nil
 	}
@@ -771,6 +1068,40 @@ func (tr *transpiler) isStringType(n tsmorph.Node) bool {
 	}
 	t := n.Type()
 	return t.IsString() || t.IsStringLiteral()
+}
+
+// isFloatType reports whether an expression's TS type maps to a Go float
+// (bare number → float64), meaning `%` must become math.Mod.
+func (tr *transpiler) isFloatType(n tsmorph.Node) bool {
+	if n.IsZero() {
+		return false
+	}
+	t := n.Type()
+	if t.IsUnknown() {
+		return false
+	}
+	return mapCheckerType(tr.cleanCheckerType(t.Text())) == "float64"
+}
+
+// convertReturnExpr adapts a return expression to the enclosing function's
+// declared Go return type where a mechanical conversion exists (notably
+// string-literal-union values returned as string).
+func (tr *transpiler) convertReturnExpr(e tsmorph.Node, s string) string {
+	if len(tr.retStack) == 0 || s == "" {
+		return s
+	}
+	ret := tr.retStack[len(tr.retStack)-1]
+	if ret != "string" || e.IsZero() {
+		return s
+	}
+	t := e.Type()
+	if t.IsUnknown() {
+		return s
+	}
+	if info, ok := tr.aliases[t.Text()]; ok && info.unionValues != nil {
+		return "string(" + s + ")"
+	}
+	return s
 }
 
 func (tr *transpiler) prefixUnary(n tsmorph.Node) (string, error) {
@@ -905,6 +1236,30 @@ func (tr *transpiler) functionLiteral(n tsmorph.Node) (string, error) {
 	if ret == "" {
 		ret = " any"
 	}
+	tr.retStack = append(tr.retStack, strings.TrimSpace(ret))
+	defer func() { tr.retStack = tr.retStack[:len(tr.retStack)-1] }()
+	if n.HasModifier(ast.ModifierFlagsAsync) {
+		// Async arrow/function expression → shim call returning a promise.
+		tr.usedShim = true
+		tr.recordGap(SevApprox, "async", n, "async arrow via jsrt shim")
+		tr.retStack[len(tr.retStack)-1] = "any"
+		body, hasBody := n.GetBody()
+		var inner string
+		if hasBody {
+			saved := tr.out
+			tmp := newGoWriter()
+			tr.out = tmp
+			err := tr.emitBlock(body)
+			tr.out = saved
+			if err != nil {
+				return "", err
+			}
+			inner = strings.TrimSuffix(tmp.String(), "\n")
+		} else {
+			inner = "\tpanic(\"not implemented\")"
+		}
+		return "jsrtAsync(func(" + params + ") any {\n" + inner + "\n})", nil
+	}
 	body, ok := n.GetBody()
 	if !ok {
 		return "func(" + params + ")" + ret + " { panic(\"not implemented\") }", nil
@@ -985,7 +1340,9 @@ func (tr *transpiler) emitArgs(args []tsmorph.Node) (string, error) {
 	var parts []string
 	for _, a := range args {
 		if ast.IsSpreadElement(a.ASTNode()) {
-			return "", fmt.Errorf("spread arguments are banned in v1")
+			parts = append(parts, placeholderExpr("spread argument"))
+			tr.recordGap(SevTodo, "dynamic", a, "spread argument needs manual expansion")
+			continue
 		}
 		s, err := tr.emitExpr(a)
 		if err != nil {
