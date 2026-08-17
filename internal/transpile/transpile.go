@@ -184,6 +184,19 @@ func (t *Transpiler) Transpile() (string, error) {
 	tr.initBuf.indent()
 	for _, stmt := range tr.sf.Statements() {
 		if ast.IsExpressionStatement(stmt.ASTNode()) {
+			// A CommonJS export statement (`exports.x = v`, `module.exports =
+			// {...}`) emits Go declarations, which Go forbids inside func
+			// init(); route it straight to package scope.
+			if e, ok := stmt.GetExpression(); ok {
+				hand, herr := tr.handleCommonJSExport(e)
+				if hand {
+					if herr != nil {
+						tr.fatal = append(tr.fatal, fmt.Sprintf("line %d: %v", tr.lineOf(stmt), herr))
+						tr.emitTodoStatement(stmt, "transpilation error: %v", herr)
+					}
+					continue
+				}
+			}
 			// Top-level expression statements are invalid at Go package
 			// scope; route them into a synthesized func init().
 			exprOut := tr.out

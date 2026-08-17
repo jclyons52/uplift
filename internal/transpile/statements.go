@@ -69,6 +69,10 @@ func (tr *transpiler) emitBlock(n tsmorph.Node) error {
 func (tr *transpiler) emitStatement(n tsmorph.Node) error {
 	switch {
 	case ast.IsVariableStatement(n.ASTNode()):
+		// `const x = require("...")` — treat require like an import.
+		if tr.handleCommonJSRequireStatement(n) {
+			return nil
+		}
 		return tr.emitVariableStatement(n)
 	case ast.IsReturnStatement(n.ASTNode()):
 		expr := ""
@@ -117,6 +121,10 @@ func (tr *transpiler) emitStatement(n tsmorph.Node) error {
 		e, ok := n.GetExpression()
 		if !ok {
 			return nil
+		}
+		// CommonJS: `exports.x = v` / `module.exports = {...}`.
+		if handled, err := tr.handleCommonJSExport(e); handled {
+			return err
 		}
 		// `.forEach(cb)` in statement position → inline for-range loop.
 		if ast.IsCallExpression(e.ASTNode()) {

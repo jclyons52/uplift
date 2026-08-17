@@ -68,6 +68,10 @@ func (tr *transpiler) transpileStatement(n tsmorph.Node, topLevel bool) error {
 	case ast.IsFunctionDeclaration(n.ASTNode()):
 		return tr.emitFunction(n)
 	case ast.IsVariableStatement(n.ASTNode()):
+		// `const x = require("...")` — treat require like an import.
+		if tr.handleCommonJSRequireStatement(n) {
+			return nil
+		}
 		return tr.emitVariableStatement(n)
 	case ast.IsImportDeclaration(n.ASTNode()):
 		return tr.handleImport(n)
@@ -549,7 +553,12 @@ func (tr *transpiler) emitFunction(n tsmorph.Node) error {
 // closure is set. TS allows function declarations nested inside functions;
 // Go does not, so those become closures.
 func (tr *transpiler) emitFunctionAs(n tsmorph.Node, closure bool) error {
-	name := n.Name()
+	return tr.emitFunctionWithName(n, n.Name(), closure)
+}
+
+// emitFunctionWithName is emitFunctionAs with an explicit Go name (used for
+// CJS exports where the source function is anonymous).
+func (tr *transpiler) emitFunctionWithName(n tsmorph.Node, goName string, closure bool) error {
 	params, ret, err := tr.signatureFromChildren(n)
 	if err != nil {
 		return err
@@ -565,9 +574,9 @@ func (tr *transpiler) emitFunctionAs(n tsmorph.Node, closure bool) error {
 		tr.recordGap(SevApprox, "async", n, "async function via jsrt shim (goroutine-per-call); swap for native concurrency later")
 		tr.retStack[len(tr.retStack)-1] = "any"
 	}
-	head := "func " + name
+	head := "func " + goName
 	if closure {
-		head = name + " := func"
+		head = goName + " := func"
 	}
 	tr.out.line(head + "(" + params + ")" + ret + " {")
 	tr.out.indent()
