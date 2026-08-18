@@ -69,6 +69,7 @@ func TestFormatterParity(t *testing.T) {
 	pairs := []struct{ mod, test string }{
 		{base + "lib/cli-engine/formatters/compact.js", base + "tests/lib/cli-engine/formatters/compact.js"},
 		{base + "lib/cli-engine/formatters/unix.js", base + "tests/lib/cli-engine/formatters/unix.js"},
+		{base + "lib/cli-engine/formatters/visualstudio.js", base + "tests/lib/cli-engine/formatters/visualstudio.js"},
 	}
 	for _, p := range pairs {
 		r, err := Run(p.mod, p.test, t.TempDir())
