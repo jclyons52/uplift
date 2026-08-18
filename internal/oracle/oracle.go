@@ -129,26 +129,39 @@ func fixUp(path, moduleBase string) {
 	// Callbacks passed to the scaffolding: value-returning form → plain.
 	s = strings.ReplaceAll(s, "func() any {", "func() {")
 	// Alias the module's default export (exported Go name) to the lowercase
-	// local name the test uses: var interpolate = Interpolate.
+	// local name the test uses. Two cases:
+	//  - the transpiler kept a cross-package require: `var X = require("...")`
+	//    where the target matches this module's basename. Rewire that line's
+	//    require to the module's Go symbol so the test's real local binding
+	//    (which need NOT equal the basename, e.g. json.js -> `formatter`)
+	//    resolves.
+	//  - the require was dropped (same package): inject `var <base> = <Upper>`
+	//    as before (interpolate-style).
 	name := strings.TrimSuffix(moduleBase, filepath.Ext(moduleBase))
 	if name == "" {
 		writeFile(path, s)
 		return
 	}
-	alias := "var " + name + " = " + strings.ToUpper(name[:1]) + name[1:]
-	if !strings.Contains(s, alias) {
-		// Insert after the import block when present, else after package.
-		switch {
-		case strings.Contains(s, "import ("):
-			if i := strings.LastIndex(s, ")\n"); i >= 0 {
-				s = s[:i+2] + "\n" + alias + "\n" + s[i+2:]
-			}
-		case strings.HasPrefix(s, "//"):
-			// Header comments: insert after the package line.
-			if i := strings.Index(s, "\npackage "); i >= 0 {
-				if j := strings.Index(s[i+1:], "\n"); j >= 0 {
-					at := i + 1 + j + 1
-					s = s[:at] + "\n" + alias + "\n" + s[at:]
+	upperName := strings.ToUpper(name[:1]) + name[1:]
+	reqPat := regexp.MustCompile(`(?m)^(\s*)var (\w+) = require\("([^"]*/` + regexp.QuoteMeta(name) + `)"\)$`)
+	if reqPat.MatchString(s) {
+		s = reqPat.ReplaceAllString(s, "${1}var ${2} = "+upperName)
+	} else {
+		alias := "var " + name + " = " + upperName
+		if !strings.Contains(s, alias) {
+			// Insert after the import block when present, else after package.
+			switch {
+			case strings.Contains(s, "import ("):
+				if i := strings.LastIndex(s, ")\n"); i >= 0 {
+					s = s[:i+2] + "\n" + alias + "\n" + s[i+2:]
+				}
+			case strings.HasPrefix(s, "//"):
+				// Header comments: insert after the package line.
+				if i := strings.Index(s, "\npackage "); i >= 0 {
+					if j := strings.Index(s[i+1:], "\n"); j >= 0 {
+						at := i + 1 + j + 1
+						s = s[:at] + "\n" + alias + "\n" + s[at:]
+					}
 				}
 			}
 		}

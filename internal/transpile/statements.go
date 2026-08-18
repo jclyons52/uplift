@@ -949,6 +949,18 @@ func (tr *transpiler) callSpecial(n, callee tsmorph.Node) (string, bool, error) 
 		}
 		return objS + ".FindString(" + argsJ + ")", true, nil
 	}
+	// JSON global: JSON.stringify / JSON.parse -> jsrt helpers. The impl is
+	// provided beside the target (e.g. the oracle harness), NOT in the
+	// auto-emitted jsrt shim, so a multi-file oracle package does not
+	// duplicate the definitions.
+	if objS == "JSON" {
+		switch propS {
+		case "stringify":
+			return "jsrtStringify(" + argsJ + ")", true, nil
+		case "parse":
+			return "jsrtParse(" + argsJ + ")", true, nil
+		}
+	}
 	switch propS {
 	case "push":
 		return "append(" + objS + ", " + argsJ + ")", true, nil
