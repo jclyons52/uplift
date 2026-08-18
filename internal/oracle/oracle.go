@@ -128,11 +128,20 @@ func fixUp(path, moduleBase string) {
 		return
 	}
 	s := string(b)
+	// Any `func() any {` inside the auto-emitted jsrt shim must NOT be
+	// converted (jsrtAsync/jsrtAll really do return `any`); only the
+	// describe/it scaffolding callbacks are value-returning in the JS that
+	// Go can't accept. Isolate the pre-shim head for the conversions.
+	head, tail := s, ""
+	if i := strings.Index(s, "// jsrt:"); i >= 0 {
+		head, tail = s[:i], s[i:]
+	}
 	// Scaffolding, only at statement position (line start + indent).
-	s = regexp.MustCompile(`(?m)^(\s*)describe\(`).ReplaceAllString(s, "${1}oracleDescribe(")
-	s = regexp.MustCompile(`(?m)^(\s*)it\(`).ReplaceAllString(s, "${1}oracleIt(")
+	head = regexp.MustCompile(`(?m)^(\s*)describe\(`).ReplaceAllString(head, "${1}oracleDescribe(")
+	head = regexp.MustCompile(`(?m)^(\s*)it\(`).ReplaceAllString(head, "${1}oracleIt(")
 	// Callbacks passed to the scaffolding: value-returning form → plain.
-	s = strings.ReplaceAll(s, "func() any {", "func() {")
+	head = strings.ReplaceAll(head, "func() any {", "func() {")
+	s = head + tail
 	// Alias the module's default export (exported Go name) to the lowercase
 	// local name the test uses. Two cases:
 	//  - the transpiler kept a cross-package require: `var X = require("...")`
@@ -147,7 +156,7 @@ func fixUp(path, moduleBase string) {
 		writeFile(path, s)
 		return
 	}
-	upperName := strings.ToUpper(name[:1]) + name[1:]
+	upperName := goExportName(name)
 	reqPat := regexp.MustCompile(`(?m)^(\s*)var (\w+) = require\("([^"]*/` + regexp.QuoteMeta(name) + `)"\)$`)
 	if reqPat.MatchString(s) {
 		s = reqPat.ReplaceAllString(s, "${1}var ${2} = "+upperName)
@@ -172,6 +181,42 @@ func fixUp(path, moduleBase string) {
 		}
 	}
 	writeFile(path, s)
+}
+
+// goExportName mirrors the transpiler's defaultExportName(): the Go symbol
+// derived from a module basename (json-with-metadata -> JsonWithMetadata),
+// so the alias fixUp writes matches the exported symbol in the transpiled
+// module file exactly.
+func goExportName(base string) string {
+	var b strings.Builder
+	up := true
+	for _, r := range base {
+		letter := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_'
+		digit := r >= '0' && r <= '9'
+		switch {
+		case letter:
+			if up {
+				if r >= 'a' && r <= 'z' {
+					r -= 'a' - 'A'
+				}
+				up = false
+			}
+			b.WriteRune(r)
+		case digit:
+			if up && b.Len() == 0 {
+				b.WriteRune('D')
+			}
+			b.WriteRune(r)
+			up = false
+		default:
+			up = true
+		}
+	}
+	res := strings.TrimSuffix(b.String(), "_")
+	if res == "" {
+		res = "Module"
+	}
+	return res
 }
 
 // dedupeShim removes the auto-emitted jsrt shim block (everything from the

@@ -70,6 +70,7 @@ func TestFormatterParity(t *testing.T) {
 		{base + "lib/cli-engine/formatters/compact.js", base + "tests/lib/cli-engine/formatters/compact.js"},
 		{base + "lib/cli-engine/formatters/unix.js", base + "tests/lib/cli-engine/formatters/unix.js"},
 		{base + "lib/cli-engine/formatters/visualstudio.js", base + "tests/lib/cli-engine/formatters/visualstudio.js"},
+		{base + "lib/cli-engine/formatters/json-with-metadata.js", base + "tests/lib/cli-engine/formatters/json-with-metadata.js"},
 	}
 	for _, p := range pairs {
 		r, err := Run(p.mod, p.test, t.TempDir())
