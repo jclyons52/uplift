@@ -69,6 +69,8 @@ type Result struct {
 	Nodes       map[string]*Node
 	Order       []string
 	StdlibHints map[string]string
+	// Counterparts is the npm→Go registry used to inform recommendations.
+	Counterparts map[string]Counterpart
 }
 
 // AnalyzeOptions controls analysis behaviour.
@@ -76,6 +78,9 @@ type AnalyzeOptions struct {
 	// Hints override/extends the built-in recommendation map when non-empty.
 	// Keyed by package name → recommendation text.
 	Hints map[string]string
+	// CounterpartOverlay is optional JSON extending/fixing the npm→Go
+	// counterpart registry for this run.
+	CounterpartOverlay []byte
 }
 
 // Recommend returns a one-line decision for an external/builtin node.
@@ -83,6 +88,17 @@ func (r *Result) Recommend(name string) string {
 	n := r.Nodes[name]
 	if n == nil {
 		return "unknown"
+	}
+	// A counterpart in the registry supplies a verdict first (use-existing /
+	// stdlib override the mechanical heuristics; port/port_partial fall
+	// through to them so size still drives the recommendation).
+	if cp, ok := r.Counterparts[name]; ok {
+		switch cp.Verdict {
+		case UseExisting:
+			return "use existing Go: " + cp.Go + " — " + cp.Note
+		case UseStdlib:
+			return "Go stdlib covers this — " + cp.Note
+		}
 	}
 	if hint, ok := r.StdlibHints[name]; ok {
 		return hint
@@ -450,9 +466,13 @@ func (a *Analyzer) relName(abs string) string {
 // recommendation hints (from a config file) may be supplied via opts.
 func Analyze(root string, opts ...AnalyzeOptions) (*Result, error) {
 	var hints map[string]string
+	var overlay []byte
 	for _, o := range opts {
 		if len(o.Hints) > 0 {
 			hints = o.Hints
+		}
+		if len(o.CounterpartOverlay) > 0 {
+			overlay = o.CounterpartOverlay
 		}
 	}
 	merged := make(map[string]string, len(stdlibHints)+len(hints))
@@ -486,9 +506,10 @@ func Analyze(root string, opts ...AnalyzeOptions) (*Result, error) {
 		root: abs,
 		nm:   findNodeModules(abs),
 		Result: &Result{
-			Root:        abs,
-			Nodes:       map[string]*Node{},
-			StdlibHints: merged,
+			Root:         abs,
+			Nodes:        map[string]*Node{},
+			StdlibHints:  merged,
+			Counterparts: LoadCounterparts(overlay),
 		},
 	}
 	// seed internal nodes

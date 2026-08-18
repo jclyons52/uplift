@@ -17,6 +17,7 @@ func runDeps(args []string) {
 	fs := flag.NewFlagSet("deps", flag.ExitOnError)
 	jsonOut := fs.Bool("json", false, "emit the graph as JSON (for downstream tooling) instead of the human report")
 	hintsFlag := fs.String("hints", "", "path to a JSON file of { package: recommendation } overrides merged over the built-in map")
+	registryFlag := fs.String("registry", "", "path to a JSON file extending/fixing the npm→Go counterpart registry")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: ts2go deps <dir>\n\nanalyzes a JS/TS codebase's module graph (internal files, node builtins, external npm packages) and reports:\n  - which files/packages require each dependency (need)\n  - which external packages are leaf nodes (own their whole subtree)\n  - size (LOC), exported-symbol count, and a split-vs-absorb recommendation\n\nflags:\n")
 		fs.PrintDefaults()
@@ -36,6 +37,14 @@ func runDeps(args []string) {
 			os.Exit(1)
 		}
 		opts.Hints = h
+	}
+	if *registryFlag != "" {
+		b, err := os.ReadFile(*registryFlag)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		opts.CounterpartOverlay = b
 	}
 
 	res, err := deps.Analyze(pos[0], opts)
@@ -60,7 +69,7 @@ func reorderDepsArgs(args []string) []string {
 	var flags, pos []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
-		if a == "--hints" || a == "-hints" {
+		if a == "--hints" || a == "-hints" || a == "--registry" || a == "-registry" {
 			flags = append(flags, a)
 			if i+1 < len(args) {
 				flags = append(flags, args[i+1])
