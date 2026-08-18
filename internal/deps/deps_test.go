@@ -89,3 +89,45 @@ func contains(list []string, v string) bool {
 	}
 	return false
 }
+
+func TestEntryExports(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{
+			name: "object-literal exports",
+			src:  `module.exports = { red, green, blue: (x) => x, helper: require("./h") };`,
+			want: []string{"red", "green", "blue", "helper"},
+		},
+		{
+			name: "member assignments",
+			src:  "exports.validate = f; exports.compile = g; module.exports.formats = {};",
+			want: []string{"validate", "compile", "formats"},
+		},
+		{
+			name: "multi-line object with nested literal",
+			src:  "module.exports = {\n  a: 1,\n  b: { x: 1, y: 2 },\n  c: 3,\n};",
+			want: []string{"a", "b", "c"},
+		},
+		{
+			name: "esm named exports",
+			src:  "export { foo, bar as baz };",
+			want: []string{"foo", "bar as baz"},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := entryExports(c.src)
+			if len(got) != len(c.want) {
+				t.Fatalf("entryExports(%q) = %v, want %v", c.src, got, c.want)
+			}
+			for i := range c.want {
+				if got[i] != c.want[i] {
+					t.Fatalf("entryExports(%q)[%d] = %q, want %q (all: %v)", c.src, i, got[i], c.want[i], got)
+				}
+			}
+		})
+	}
+}

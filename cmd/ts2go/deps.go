@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/jclyons52/ts2go/internal/deps"
 )
@@ -14,17 +16,29 @@ import (
 func runDeps(args []string) {
 	fs := flag.NewFlagSet("deps", flag.ExitOnError)
 	jsonOut := fs.Bool("json", false, "emit the graph as JSON (for downstream tooling) instead of the human report")
+	hintsFlag := fs.String("hints", "", "path to a JSON file of { package: recommendation } overrides merged over the built-in map")
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: ts2go deps <dir>\n\nanalyzes a JS/TS codebase's module graph (internal files, node builtins, external npm packages) and reports:\n  - which files/packages require each dependency (need)\n  - which external packages are leaf nodes (own their whole subtree)\n  - size (LOC) and a split-vs-absorb recommendation\n\nflags:\n")
+		fmt.Fprintf(os.Stderr, "usage: ts2go deps <dir>\n\nanalyzes a JS/TS codebase's module graph (internal files, node builtins, external npm packages) and reports:\n  - which files/packages require each dependency (need)\n  - which external packages are leaf nodes (own their whole subtree)\n  - size (LOC), exported-symbol count, and a split-vs-absorb recommendation\n\nflags:\n")
 		fs.PrintDefaults()
 	}
-	fs.Parse(args)
+	fs.Parse(reorderDepsArgs(args))
 	pos := fs.Args()
 	if len(pos) != 1 {
 		fs.Usage()
 		os.Exit(2)
 	}
-	res, err := deps.Analyze(pos[0])
+
+	var opts deps.AnalyzeOptions
+	if *hintsFlag != "" {
+		h, err := readHints(*hintsFlag)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		opts.Hints = h
+	}
+
+	res, err := deps.Analyze(pos[0], opts)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
@@ -37,4 +51,41 @@ func runDeps(args []string) {
 		return
 	}
 	fmt.Print(res.Render())
+}
+
+// reorderDepsArgs lets flags appear after the positional dir (`ts2go deps
+// <dir> --json`), which the flag package otherwise stops parsing at. Only
+// --hints consumes a value token, so this is unambiguous.
+func reorderDepsArgs(args []string) []string {
+	var flags, pos []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--hints" || a == "-hints" {
+			flags = append(flags, a)
+			if i+1 < len(args) {
+				flags = append(flags, args[i+1])
+				i++
+			}
+			continue
+		}
+		if strings.HasPrefix(a, "-") {
+			flags = append(flags, a)
+			continue
+		}
+		pos = append(pos, a)
+	}
+	return append(flags, pos...)
+}
+
+// readHints loads a { "package": "recommendation" } JSON map from a file.
+func readHints(path string) (map[string]string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read hints: %w", err)
+	}
+	var m map[string]string
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, fmt.Errorf("parse hints %s: %w", path, err)
+	}
+	return m, nil
 }

@@ -14,6 +14,7 @@ package deps
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -59,7 +60,7 @@ type Node struct {
 	Requirers []string // modules that require this one
 	Requires  []string // modules this one requires
 	Loc       int      // line count (internal: file; external: package .js source excluding node_modules)
-	Exports   []string // exported symbols discovered (external packages, best-effort)
+	Exports   []string // exported symbol names discovered (external packages, best-effort)
 }
 
 // Result is the analyzed graph keyed by canonical node name.
@@ -68,6 +69,13 @@ type Result struct {
 	Nodes       map[string]*Node
 	Order       []string
 	StdlibHints map[string]string
+}
+
+// AnalyzeOptions controls analysis behaviour.
+type AnalyzeOptions struct {
+	// Hints override/extends the built-in recommendation map when non-empty.
+	// Keyed by package name → recommendation text.
+	Hints map[string]string
 }
 
 // Recommend returns a one-line decision for an external/builtin node.
@@ -88,13 +96,16 @@ func (r *Result) Recommend(name string) string {
 	}
 	leaf := r.IsLeaf(name)
 	hasChildren := r.HasExternalChildren(name)
+	exports := len(n.Exports)
 	switch {
 	case !leaf && hasChildren:
 		return "split as a repo WITH its subtree (owns children)"
 	case leaf && n.Loc < 40:
 		return "too small to split (leftPad-class) — absorb/inline; not worth a repo"
+	case leaf && exports <= 2 && n.Loc < 300:
+		return fmt.Sprintf("small leaf (%d exports, %d LOC) — absorb or one-file lib", exports, n.Loc)
 	case leaf && n.Loc < 300:
-		return "small leaf library — port as its own repo (candidate)"
+		return fmt.Sprintf("small leaf library (%d exports) — port as its own repo (candidate)", exports)
 	case leaf:
 		return "leaf library — port as its own repo"
 	default:
@@ -287,7 +298,7 @@ func (a *Analyzer) analyzeExternal() {
 			res.Order = append(res.Order, name)
 		}
 		node.Loc = sourceLoc(dir)
-		node.Exports = discoveredExports(pj)
+		node.Exports = discoveredExports(dir, pj)
 		var deps []string
 		for d := range pj.Dependencies {
 			deps = append(deps, d)
@@ -431,8 +442,22 @@ func (a *Analyzer) relName(abs string) string {
 	return filepath.ToSlash(rel)
 }
 
-// Analyze builds the full module graph for a root directory.
-func Analyze(root string) (*Result, error) {
+// Analyze builds the full module graph for a root directory. Custom
+// recommendation hints (from a config file) may be supplied via opts.
+func Analyze(root string, opts ...AnalyzeOptions) (*Result, error) {
+	var hints map[string]string
+	for _, o := range opts {
+		if len(o.Hints) > 0 {
+			hints = o.Hints
+		}
+	}
+	merged := make(map[string]string, len(stdlibHints)+len(hints))
+	for k, v := range stdlibHints {
+		merged[k] = v
+	}
+	for k, v := range hints {
+		merged[k] = v
+	}
 	var files []string
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -459,7 +484,7 @@ func Analyze(root string) (*Result, error) {
 		Result: &Result{
 			Root:        abs,
 			Nodes:       map[string]*Node{},
-			StdlibHints: stdlibHints,
+			StdlibHints: merged,
 		},
 	}
 	// seed internal nodes
@@ -523,19 +548,129 @@ func readPackage(dir string) (packageJSON, error) {
 	return pj, nil
 }
 
-// discoveredExports returns exported symbol names from a package entry, best
-// effort. Detects a top-level object whose keys are the exports (common for
-// "modules exporting a const object" like chalk/ansi-styles) and counts
-// top-level exported declarations.
-func discoveredExports(pj packageJSON) []string {
-	if pj.Main == "" {
-		return nil
+// Public-API signal: the set of exported symbol names a package exposes. This
+// sharpens the "too small to split (leftPad-class)" vs "worth a repo" call:
+// a leftPad-style dep has a single export while a real library has many.
+func discoveredExports(dir string, pj packageJSON) []string {
+	// Resolve the entry the way Node would: package.json "main", else index.js.
+	entry := pj.Main
+	if entry == "" {
+		entry = "index.js"
 	}
-	// Not parsed via AST here to keep the external walk cheap; a zero-LOC
-	// heuristic is deferred. We report known export "shape" only when the
-	// entry simply re-exports an object literal.
+	candidates := []string{
+		entry,
+		strings.TrimSuffix(entry, ".js") + ".js",
+	}
+	seenPkg := map[string]bool{}
+	for _, cand := range candidates {
+		if !strings.HasSuffix(cand, ".js") {
+			cand += ".js"
+		}
+		full := filepath.Join(dir, cand)
+		if b, err := os.ReadFile(full); err == nil && !seenPkg[cand] {
+			seenPkg[cand] = true
+			if got := entryExports(string(b)); len(got) > 0 {
+				return got
+			}
+		}
+	}
+	// fall back to any top-level index file
+	if b, err := os.ReadFile(filepath.Join(dir, "index.js")); err == nil && !seenPkg["index.js"] {
+		return entryExports(string(b))
+	}
 	return nil
 }
+
+// entryExports extracts export names from a CommonJS/ESM entry source:
+//
+//	module.exports.foo / exports.foo  (member assignments)
+//	module.exports = { a, b, "c": ..., [d]: ... }  (object-literal export)
+//	export { a, b }                                 (ESM)
+//	export default                                  (declared)
+func entryExports(src string) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(s string) {
+		s = strings.TrimSpace(s)
+		if s == "" || seen[s] {
+			return
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	for _, m := range memberExportRe.FindAllStringSubmatch(src, -1) {
+		add(m[1])
+	}
+	// module.exports = { ... }  (allow whitespace)
+	for _, m := range objExportRe.FindAllStringSubmatchIndex(src, -1) {
+		bodyStart := m[1]
+		for _, k := range objectKeys(src[bodyStart:]) {
+			add(k)
+		}
+	}
+	for _, m := range esmExportRe.FindAllStringSubmatch(src, -1) {
+		for _, name := range strings.Split(m[1], ",") {
+			add(strings.TrimSpace(name))
+		}
+	}
+	if strings.Contains(src, "export default") {
+		add("default")
+	}
+	return out
+}
+
+// objectKeys scans a string that begins just after "module.exports = {" and
+// extracts the top-level property keys, balancing nested braces so a trailing
+// object literal doesn't leak. Stops at the matching close brace.
+func objectKeys(body string) []string {
+	var keys []string
+	depth := 0
+	var cur strings.Builder
+	flush := func() {
+		t := strings.TrimSpace(cur.String())
+		cur.Reset()
+		if t == "" {
+			return
+		}
+		// key is the part before ':' (or the whole token for shorthand)
+		key := t
+		if i := strings.IndexByte(t, ':'); i >= 0 {
+			key = strings.TrimSpace(t[:i])
+		}
+		key = strings.Trim(key, `"'`)
+		if key != "" && key != "..." && !strings.HasPrefix(key, "[") {
+			keys = append(keys, key)
+		}
+	}
+	for i := 0; i < len(body); i++ {
+		c := body[i]
+		switch c {
+		case '{':
+			depth++
+		case '}':
+			if depth == 0 {
+				flush()
+				return keys
+			}
+			depth--
+		case ',', '\n':
+			if depth == 0 {
+				flush()
+			} else {
+				cur.WriteByte(c)
+			}
+			continue
+		}
+		cur.WriteByte(c)
+	}
+	return keys
+}
+
+var (
+	memberExportRe = regexp.MustCompile(`\b(?:module\.exports|exports)\.([A-Za-z_$][\w$]*)\b`)
+	objExportRe    = regexp.MustCompile(`module\.exports\s*=\s*\{`)
+	esmExportRe    = regexp.MustCompile(`export\s*\{([^}]*)\}`)
+)
 
 func addUnique(list []string, v string) []string {
 	for _, x := range list {
