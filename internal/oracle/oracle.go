@@ -202,9 +202,11 @@ func shimModuleDeps(path string) {
 		return
 	}
 	s := string(b)
-	// js-yaml: yaml.dump(x) -> yamlDump(x). Also drop the (unbound) `yaml`
-	// external require if present so the package compiles without it.
+	// js-yaml: yaml.dump(x) -> yamlDump(x). The transpiler may emit either
+	// the jsrtGet-call form or the newer jsrtCall form. Also drop the
+	// (unbound) `yaml` external require if present so the package compiles.
 	s = strings.ReplaceAll(s, `jsrtGet(yaml, "dump")(`, "yamlDump(")
+	s = regexp.MustCompile(`jsrtCall\(yaml, "dump", `).ReplaceAllString(s, "yamlDump(")
 	s = regexp.MustCompile(`(?m)^\s*var yaml = .*$`).ReplaceAllString(s, "")
 	_ = os.WriteFile(path, []byte(s), 0o644)
 }

@@ -943,6 +943,27 @@ func (tr *transpiler) callExpression(n tsmorph.Node) (string, error) {
 			tr.recordGap(SevTodo, "module", n, "call to %s: not defined in this file — wire up the Go equivalent/import", callee.Text())
 		}
 	}
+	// Dynamic method call on an any receiver: `obj.m(a)` cannot compile as
+	// the generic `jsrtGet(obj, "m")(a)` — an `any` is not callable. Route
+	// through a jsrtCall dispatcher so shim objects (chalk, ...) and generic
+	// dynamic methods resolve at runtime. (forEach/map/filter/reduce and the
+	// special string/array methods are handled above, so only real
+	// property-method-invocation reaches here.)
+	if ast.IsPropertyAccessExpression(callee.ASTNode()) {
+		if pa, ok := callee.AsPropertyAccessExpression(); ok {
+			if obj, ok := pa.GetExpression(); ok && tr.isDynamicReceiver(obj) {
+				if prop, ok := pa.GetNameNode(); ok {
+					objS, err := tr.emitExpr(obj)
+					args, aerr := tr.emitArgs(n.GetArguments())
+					if err == nil && aerr == nil {
+						tr.usedShim = true
+						tr.recordGap(SevApprox, "dynamic", n, "dynamic method call %s.%s via jsrtCall", objS, prop.Text())
+						return "jsrtCall(" + objS + ", \"" + prop.Text() + "\", " + args + ")", nil
+					}
+				}
+			}
+		}
+	}
 	calleeS, err := tr.emitExpr(callee)
 	if err != nil {
 		return "", err

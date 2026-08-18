@@ -185,6 +185,30 @@ func jsrtNum(v any) float64 {
 	return 0
 }
 
+// jsrtCall dispatches a dynamic method invocation obj.m(args...) at runtime.
+// The transpiler emits this for property-method calls on any receivers.
+func jsrtCall(obj any, method string, args ...any) any {
+	if o, ok := obj.([]any); ok {
+		if method == "forEach" && len(args) > 0 {
+			fn := args[0]
+			fnv := reflect.ValueOf(fn)
+			if fnv.Kind() != reflect.Func {
+				return nil
+			}
+			for i, v := range o {
+				if fnv.Type().NumIn() >= 2 {
+					fnv.Call([]reflect.Value{reflect.ValueOf(v), reflect.ValueOf(float64(i))})
+				} else {
+					fnv.Call([]reflect.Value{reflect.ValueOf(v)})
+				}
+			}
+			return nil
+		}
+	}
+	// chalk/strip-ansi/text-table are handled by shim objects; unknown → nil.
+	return nil
+}
+
 // jsrtArray coerces an any iterable (map or slice) to a []any so a JS
 // "for (const x of col)" can be emitted as a Go for-range. Map iteration
 // yields the values; slices pass through.
