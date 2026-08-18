@@ -82,9 +82,25 @@ func numVal(v any) (float64, bool) {
 	return 0, false
 }
 
+// normObj coerces an *jsrtObj to a map[string]any so equality/marshalling
+// treat ordered and unordered objects identically (order only matters to
+// yaml-dump / Object.keys).
+func normObj(v any) any {
+	if o, ok := v.(*jsrtObj); ok {
+		m := make(map[string]any, len(*o))
+		for _, e := range *o {
+			m[e.K] = e.V
+		}
+		return m
+	}
+	return v
+}
+
 // jsrtDeepEqual is reflect.DeepEqual with JS numeric + deep-map/slice
 // coercion: 2 == 2.0, and numbers nested in maps/slices compare numerically.
 func jsrtDeepEqual(a, b any) bool {
+	a = normObj(a)
+	b = normObj(b)
 	av, aNum := numVal(a)
 	bv, bNum := numVal(b)
 	if aNum && bNum {
@@ -118,8 +134,35 @@ func jsrtDeepEqual(a, b any) bool {
 	return reflect.DeepEqual(a, b)
 }
 
+// jsonObj deep-normalizes jsrtObj/map/slice values to plain JSON-ready
+// structures (nested jsrtObj → maps, recursively), so JSON.stringify and
+// equality treat ordered objects like plain objects.
+func jsonObj(v any) any {
+	switch x := v.(type) {
+	case *jsrtObj:
+		m := make(map[string]any, len(*x))
+		for _, e := range *x {
+			m[e.K] = jsonObj(e.V)
+		}
+		return m
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = jsonObj(e)
+		}
+		return out
+	case map[string]any:
+		m := make(map[string]any, len(x))
+		for k, val := range x {
+			m[k] = jsonObj(val)
+		}
+		return m
+	}
+	return v
+}
+
 func jsrtStringify(v any) string {
-	b, err := json.Marshal(v)
+	b, err := json.Marshal(jsonObj(v))
 	if err != nil {
 		return ""
 	}
@@ -135,13 +178,19 @@ func jsrtParse(s any) any {
 }
 
 // jsrtKeys returns the string keys of a string-keyed map as []any (JS
-// Object.keys over a plain object).
+// Object.keys over a plain object), preserving insertion order for jsrtObj.
 func jsrtKeys(m any) []any {
 	switch x := m.(type) {
 	case map[string]any:
 		out := make([]any, 0, len(x))
 		for k := range x {
 			out = append(out, k)
+		}
+		return out
+	case *jsrtObj:
+		out := make([]any, 0, len(*x))
+		for _, e := range *x {
+			out = append(out, e.K)
 		}
 		return out
 	}
@@ -157,6 +206,12 @@ func jsrtValues(m any) []any {
 			out = append(out, v)
 		}
 		return out
+	case *jsrtObj:
+		out := make([]any, 0, len(*x))
+		for _, e := range *x {
+			out = append(out, e.V)
+		}
+		return out
 	}
 	return []any{}
 }
@@ -168,6 +223,12 @@ func jsrtEntries(m any) []any {
 		out := make([]any, 0, len(x))
 		for k, v := range x {
 			out = append(out, []any{k, v})
+		}
+		return out
+	case *jsrtObj:
+		out := make([]any, 0, len(*x))
+		for _, e := range *x {
+			out = append(out, []any{e.K, e.V})
 		}
 		return out
 	}
@@ -267,77 +328,95 @@ func yamlBlock(b *strings.Builder, v any, indent int) {
 			yamlItem(b, item, indent)
 			b.WriteString("\n")
 		}
-	case map[string]any:
-		for _, k := range yamlKeys(x) {
-			b.WriteString(strings.Repeat(" ", indent) + k + ":")
-			yamlVal(b, x[k], indent)
-			b.WriteString("\n")
-		}
 	default:
-		b.WriteString(strings.Repeat(" ", indent) + yamlScalar(v))
+		if pairs, ok := yamlPairs(v); ok {
+			for _, p := range pairs {
+				b.WriteString(strings.Repeat(" ", indent) + fmt.Sprint(p[0]) + ":")
+				yamlVal(b, p[1], indent)
+				b.WriteString("\n")
+			}
+		} else {
+			b.WriteString(strings.Repeat(" ", indent) + yamlScalar(v))
+		}
 	}
 }
 
 // yamlItem writes a sequence item's value after the "-" token already emitted.
 func yamlItem(b *strings.Builder, v any, indent int) {
-	switch x := v.(type) {
-	case map[string]any:
-		keys := yamlKeys(x)
+	if pairs, ok := yamlPairs(v); ok {
 		first := true
-		for _, k := range keys {
+		for _, p := range pairs {
+			k := fmt.Sprint(p[0])
 			if first {
 				b.WriteString(" " + k + ":")
-				yamlVal(b, x[k], indent)
+				yamlVal(b, p[1], indent)
 				first = false
 			} else {
 				b.WriteString("\n" + strings.Repeat(" ", indent+2) + k + ":")
-				yamlVal(b, x[k], indent+2)
+				yamlVal(b, p[1], indent+2)
 			}
 		}
-	case []any:
+		return
+	}
+	if arr, ok := v.([]any); ok {
 		b.WriteString("\n")
-		for _, item := range x {
+		for _, item := range arr {
 			b.WriteString(strings.Repeat(" ", indent+2) + "-")
 			yamlItem(b, item, indent+2)
 			b.WriteString("\n")
 		}
-	default:
-		b.WriteString(" " + yamlScalar(v))
+		return
 	}
+	b.WriteString(" " + yamlScalar(v))
 }
 
 // yamlVal writes the value after "key:" already emitted (handles nesting).
 func yamlVal(b *strings.Builder, v any, indent int) {
-	switch x := v.(type) {
-	case map[string]any:
+	if pairs, ok := yamlPairs(v); ok {
 		b.WriteString("\n")
-		for _, k := range yamlKeys(x) {
-			b.WriteString(strings.Repeat(" ", indent+2) + k + ":")
-			yamlVal(b, x[k], indent+2)
+		for _, p := range pairs {
+			b.WriteString(strings.Repeat(" ", indent+2) + fmt.Sprint(p[0]) + ":")
+			yamlVal(b, p[1], indent+2)
 			b.WriteString("\n")
 		}
-	case []any:
+		return
+	}
+	if arr, ok := v.([]any); ok {
 		b.WriteString("\n")
-		for _, item := range x {
+		for _, item := range arr {
 			b.WriteString(strings.Repeat(" ", indent+2) + "-")
 			yamlItem(b, item, indent+2)
 			b.WriteString("\n")
 		}
-	default:
-		b.WriteString(" " + yamlScalar(v))
+		return
 	}
+	b.WriteString(" " + yamlScalar(v))
 }
 
-// yamlKeys returns map keys in insertion-preserving order. Go maps are
-// unordered, so we sort for determinism; js-yaml uses insertion order, so a
-// byte-exact strictEqual on a multi-key map may diverge (handled below).
-func yamlKeys(m map[string]any) []string {
-	ks := make([]string, 0, len(m))
-	for k := range m {
-		ks = append(ks, k)
+// yamlPairs yields key/value pairs in order: *jsrtObj preserves insertion
+// order (matching js-yaml over a JS object literal); a plain map is sorted
+// for determinism.
+func yamlPairs(v any) ([][2]any, bool) {
+	switch x := v.(type) {
+	case *jsrtObj:
+		out := make([][2]any, 0, len(*x))
+		for _, e := range *x {
+			out = append(out, [2]any{e.K, e.V})
+		}
+		return out, true
+	case map[string]any:
+		ks := make([]string, 0, len(x))
+		for k := range x {
+			ks = append(ks, k)
+		}
+		sort.Strings(ks)
+		out := make([][2]any, 0, len(ks))
+		for _, k := range ks {
+			out = append(out, [2]any{k, x[k]})
+		}
+		return out, true
 	}
-	sort.Strings(ks)
-	return ks
+	return nil, false
 }
 
 func main() {

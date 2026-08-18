@@ -1558,17 +1558,14 @@ func (tr *transpiler) objectLiteral(n tsmorph.Node) (string, error) {
 			return name + "{" + strings.Join(sparts, ", ") + "}", nil
 		}
 	}
-	if len(vals) == 0 {
-		// All elements were gaps (spread, methods, ...): an empty map
-		// literal is the compiling stand-in.
-		return "map[string]any{}", nil
-	}
-	tr.recordGap(SevApprox, "literal", n, "untyped object literal emitted as map[string]any")
-	var mparts []string
+	// Untyped object literal: emit as an insertion-ordered *jsrtObj so key
+	// order survives to Object.keys / yaml-dump / etc. (Go maps lose order).
+	tr.usedShim = true
+	var jparts []string
 	for i := range vals {
-		mparts = append(mparts, `"`+keys[i]+`": `+vals[i])
+		jparts = append(jparts, `jsrtKV{"`+keys[i]+`", `+vals[i]+`}`)
 	}
-	return "map[string]any{" + strings.Join(mparts, ", ") + "}", nil
+	return "&jsrtObj{" + strings.Join(jparts, ", ") + "}", nil
 }
 
 // objectLiteralElement renders one element of an object literal as a Go

@@ -17,6 +17,35 @@ type jsrtPromise struct {
 	err  error
 }
 
+// jsrtObj is an insertion-ordered dynamic object (JS plain object literal),
+// preserving the key order js-yaml / Object.keys depend on. It is emitted as
+// *jsrtObj so jsrtSet/jsrtPush can grow it in place.
+type jsrtObj []jsrtKV
+
+type jsrtKV struct {
+	K string
+	V any
+}
+
+func jsrtObjGet(o *jsrtObj, k string) (any, bool) {
+	for _, e := range *o {
+		if e.K == k {
+			return e.V, true
+		}
+	}
+	return nil, false
+}
+
+func jsrtObjSet(o *jsrtObj, k string, v any) {
+	for i := range *o {
+		if (*o)[i].K == k {
+			(*o)[i].V = v
+			return
+		}
+	}
+	*o = append(*o, jsrtKV{k, v})
+}
+
 // jsrtTruthy reports JS truthiness: everything is truthy except false, 0,
 // "", null, undefined, and NaN.
 func jsrtTruthy(v any) bool {
@@ -42,6 +71,9 @@ func jsrtIn(key, m any) bool {
 	case map[string]any:
 		_, ok := mm[fmt.Sprint(key)]
 		return ok
+	case *jsrtObj:
+		_, ok := jsrtObjGet(mm, fmt.Sprint(key))
+		return ok
 	case []any:
 		if i, ok := key.(float64); ok && i == float64(int(i)) && int(i) >= 0 && int(i) < len(mm) {
 			return true
@@ -58,6 +90,10 @@ func jsrtIn(key, m any) bool {
 func jsrtSet(m any, k string, v any) {
 	if mm, ok := m.(map[string]any); ok {
 		mm[k] = v
+		return
+	}
+	if mo, ok := m.(*jsrtObj); ok {
+		jsrtObjSet(mo, k, v)
 	}
 }
 
@@ -91,6 +127,10 @@ func jsrtGet(m, k any) any {
 	switch mm := m.(type) {
 	case map[string]any:
 		return mm[fmt.Sprint(k)]
+	case *jsrtObj:
+		if v, ok := jsrtObjGet(mm, fmt.Sprint(k)); ok {
+			return v
+		}
 	case []any:
 		if i, ok := toIndex(k); ok && i >= 0 && i < len(mm) {
 			return mm[i]
@@ -113,6 +153,8 @@ func jsrtLen(x any) float64 {
 		return float64(len(v))
 	case map[string]any:
 		return float64(len(v))
+	case *jsrtObj:
+		return float64(len(*v))
 	}
 	return 0
 }
@@ -136,6 +178,12 @@ func jsrtArray(x any) []any {
 		out := make([]any, 0, len(v))
 		for _, val := range v {
 			out = append(out, val)
+		}
+		return out
+	case *jsrtObj:
+		out := make([]any, 0, len(*v))
+		for _, e := range *v {
+			out = append(out, e.V)
 		}
 		return out
 	case string:

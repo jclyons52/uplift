@@ -23,22 +23,32 @@ func transpileSrc(t *testing.T, src string) string {
 	return out
 }
 
+// preShim returns the generated source without the auto-emitted jsrt shim,
+// so body-level checks don't trip on the shim's own `panic(`/runtime lines.
+func preShim(out string) string {
+	if i := strings.Index(out, "// jsrt:"); i >= 0 {
+		return out[:i]
+	}
+	return out
+}
+
 func TestObjectLiteralShorthand(t *testing.T) {
 	out := transpileSrc(t, `const a = 1;
 const x = { a };`)
-	if strings.Contains(out, "panic") {
+	if strings.Contains(preShim(out), "panic") {
 		t.Fatalf("shorthand object literal must not panic:\n%s", out)
 	}
-	// Untyped literals emit as map[string]any with the original key spelling.
-	if !strings.Contains(out, `"a": a`) {
-		t.Errorf("shorthand should become a keyed map entry \"a\": a:\n%s", out)
+	// Untyped literals emit as an insertion-ordered *jsrtObj preserving the
+	// original key spelling.
+	if !strings.Contains(out, `jsrtKV{"a", a}`) {
+		t.Errorf("shorthand should become a keyed jsrtObj entry jsrtKV{\"a\", a}:\n%s", out)
 	}
 	compileGo(t, "obj.go", out)
 }
 
 func TestObjectLiteralSpread(t *testing.T) {
 	out := transpileSrc(t, `const x = { ...{ a: 1 } };`)
-	if strings.Contains(out, "panic") {
+	if strings.Contains(preShim(out), "panic") {
 		t.Fatalf("spread object literal must not panic:\n%s", out)
 	}
 	if !strings.Contains(out, "object spread has no Go struct-literal equivalent") {
@@ -49,7 +59,7 @@ func TestObjectLiteralSpread(t *testing.T) {
 
 func TestObjectLiteralGetter(t *testing.T) {
 	out := transpileSrc(t, `const o = { get x() { return 1; } };`)
-	if strings.Contains(out, "panic") {
+	if strings.Contains(preShim(out), "panic") {
 		t.Fatalf("getter object literal must not panic:\n%s", out)
 	}
 	if !strings.Contains(out, "KindGetAccessor has no Go struct-literal equivalent") {
@@ -62,7 +72,7 @@ func TestObjectLiteralAnonymousFallback(t *testing.T) {
 	// An object literal the checker resolves to an anonymous __object type
 	// takes the anonymous-struct fallback; it must be valid Go.
 	out := transpileSrc(t, `const x = { a: 1, b: "y" };`)
-	if strings.Contains(out, "panic") {
+	if strings.Contains(preShim(out), "panic") {
 		t.Fatalf("anonymous object literal must not panic:\n%s", out)
 	}
 	compileGo(t, "obj.go", out)
@@ -78,7 +88,7 @@ const x: Pair = { a: 1, b: "y" };`)
 // fail the statement — it becomes any + a gap.
 func TestImportTypeDegrades(t *testing.T) {
 	out := transpileSrc(t, `function f(x: typeof import("fs")): number { return 1; }`)
-	if strings.Contains(out, "panic") {
+	if strings.Contains(preShim(out), "panic") {
 		t.Fatalf("import type must not panic:\n%s", out)
 	}
 	if !strings.Contains(out, "TODO(ts2go)") && !strings.Contains(out, "import type") {

@@ -145,7 +145,6 @@ func fixUp(path, moduleBase string) {
 	head = regexp.MustCompile(`(?m)^(\s*)it\(`).ReplaceAllString(head, "${1}oracleIt(")
 	// Callbacks passed to the scaffolding: value-returning form → plain.
 	head = strings.ReplaceAll(head, "func() any {", "func() {")
-	s = head + tail
 	// Alias the module's default export (exported Go name) to the lowercase
 	// local name the test uses. Two cases:
 	//  - the transpiler kept a cross-package require: `var X = require("...")`
@@ -155,35 +154,41 @@ func fixUp(path, moduleBase string) {
 	//    resolves.
 	//  - the require was dropped (same package): inject `var <base> = <Upper>`
 	//    as before (interpolate-style).
+	//
+	// The injection must target the pre-shim head (dedupeShim later strips the
+	// shim to EOF, so an alias placed after the `// jsrt:` marker is lost).
 	name := strings.TrimSuffix(moduleBase, filepath.Ext(moduleBase))
-	if name == "" {
-		writeFile(path, s)
-		return
-	}
-	upperName := goExportName(name)
-	reqPat := regexp.MustCompile(`(?m)^(\s*)var (\w+) = require\("([^"]*/` + regexp.QuoteMeta(name) + `)"\)$`)
-	if reqPat.MatchString(s) {
-		s = reqPat.ReplaceAllString(s, "${1}var ${2} = "+upperName)
-	} else {
-		alias := "var " + name + " = " + upperName
-		if !strings.Contains(s, alias) {
-			// Insert after the import block when present, else after package.
-			switch {
-			case strings.Contains(s, "import ("):
-				if i := strings.LastIndex(s, ")\n"); i >= 0 {
-					s = s[:i+2] + "\n" + alias + "\n" + s[i+2:]
-				}
-			case strings.HasPrefix(s, "//"):
-				// Header comments: insert after the package line.
-				if i := strings.Index(s, "\npackage "); i >= 0 {
-					if j := strings.Index(s[i+1:], "\n"); j >= 0 {
-						at := i + 1 + j + 1
-						s = s[:at] + "\n" + alias + "\n" + s[at:]
+	if name != "" {
+		upperName := goExportName(name)
+		reqPat := regexp.MustCompile(`(?m)^(\s*)var (\w+) = require\("([^"]*/` + regexp.QuoteMeta(name) + `)"\)$`)
+		if reqPat.MatchString(head) {
+			head = reqPat.ReplaceAllString(head, "${1}var ${2} = "+upperName)
+		} else {
+			alias := "var " + name + " = " + upperName
+			if !strings.Contains(head, alias) {
+				switch {
+				case strings.Contains(head, "import ("):
+					// Insert the alias right after the import block's closing `)`,
+					// which is always before the test body's uses (a naive
+					// LastIndex on ")\n" lands on a later call's paren).
+					if si := strings.Index(head, "import ("); si >= 0 {
+						if ci := strings.Index(head[si:], ")"); ci >= 0 {
+							at := si + ci + 1
+							head = head[:at] + "\n" + alias + "\n" + head[at:]
+						}
+					}
+				case strings.HasPrefix(head, "//"):
+					if i := strings.Index(head, "\npackage "); i >= 0 {
+						if j := strings.Index(head[i+1:], "\n"); j >= 0 {
+							at := i + 1 + j + 1
+							head = head[:at] + "\n" + alias + "\n" + head[at:]
+						}
 					}
 				}
 			}
 		}
 	}
+	s = head + tail
 	writeFile(path, s)
 }
 
