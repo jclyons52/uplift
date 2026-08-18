@@ -106,7 +106,7 @@ func TestObjectParamAndTruthyCondition(t *testing.T) {
 	// wrapped (jsrtTruthy) so it compiles and matches JS semantics.
 	out := transpileFile(t, "../../testdata/object_param.ts")
 	for _, want := range []string{
-		"map[string]any",     // @param {Object} -> map[string]any
+		"message any",        // @param {Object} -> any (dynamic value)
 		"jsrtGet(message, ",  // message.fatal / message.severity
 		"jsrtOr(",            // message.fatal || message.severity === 2
 		"jsrtTruthy(jsrtOr(", // the if-condition truthiness wrap

@@ -779,11 +779,33 @@ func (tr *transpiler) isDynamicReceiver(n tsmorph.Node) bool {
 	}
 	t := n.Type()
 	if t.IsUnknown() {
+		// Element access on a dynamic container still yields a dynamic value
+		// even if the checker narrows the element type.
+		if ast.IsElementAccessExpression(n.ASTNode()) {
+			if ea, ok := n.AsElementAccessExpression(); ok {
+				if o, ok := ea.GetExpression(); ok && tr.isDynamicReceiver(o) {
+					return true
+				}
+			}
+		}
 		return false
 	}
 	txt := t.Text()
-	return t.IsAny() || strings.Contains(txt, "Object") ||
-		strings.Contains(txt, "map[string]any") || strings.Contains(txt, "[]any")
+	if t.IsAny() || strings.Contains(txt, "Object") ||
+		strings.Contains(txt, "map[string]any") || strings.Contains(txt, "[]any") {
+		return true
+	}
+	// A[expr] where A is a dynamic container yields a dynamic value even when
+	// the checker narrows the element type (e.g. code[0] of []any is the
+	// object shape, but at runtime it is map[string]any).
+	if ast.IsElementAccessExpression(n.ASTNode()) {
+		if ea, ok := n.AsElementAccessExpression(); ok {
+			if o, ok := ea.GetExpression(); ok && tr.isDynamicReceiver(o) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // propertyAccess renders `obj.prop` — mapping TS built-ins to Go:
@@ -1439,8 +1461,9 @@ func (tr *transpiler) conditionalExpression(n tsmorph.Node) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Go has no ternary; use an IIFE for expression positions.
-	return "func() any { if " + cs + " { return " + ts + " }; return " + fs + " }()", nil
+	// Go has no ternary; use an IIFE for expression positions. The
+	// condition gets the same truthiness/placeholder treatment as an if.
+	return "func() any { if " + condExpr(cs) + " { return " + ts + " }; return " + fs + " }()", nil
 }
 
 func (tr *transpiler) arrayLiteral(n tsmorph.Node) (string, error) {
