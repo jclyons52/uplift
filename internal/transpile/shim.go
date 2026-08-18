@@ -167,6 +167,24 @@ func jsrtOr(a, b any) any {
 	return b
 }
 
+// jsrtNum coerces a dynamic value to float64 for +=-style numeric
+// accumulation (JS number semantics; non-numeric -> 0).
+func jsrtNum(v any) float64 {
+	switch x := v.(type) {
+	case float64:
+		return x
+	case int:
+		return float64(x)
+	case int64:
+		return float64(x)
+	case bool:
+		if x {
+			return 1
+		}
+	}
+	return 0
+}
+
 // jsrtArray coerces an any iterable (map or slice) to a []any so a JS
 // "for (const x of col)" can be emitted as a Go for-range. Map iteration
 // yields the values; slices pass through.

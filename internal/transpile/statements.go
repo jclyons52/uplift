@@ -1272,11 +1272,18 @@ func (tr *transpiler) binaryExpression(n tsmorph.Node) (string, error) {
 		rr := rs
 		// x += <dynamic>: a string LHS concatenated with an any-typed value
 		// (member access, dynamic ||, or an any-returning IIFE) must coerce
-		// the RHS to string — JS `+=` string-concatenates.
-		if op == "+=" && tr.isStringType(left) &&
-			(tr.isDynamicReceiver(right) || strings.HasPrefix(strings.TrimSpace(rs), "func() any")) {
-			tr.used["fmt"] = true
-			rr = "fmt.Sprint(" + rs + ")"
+		// the RHS to string — JS `+=` string-concatenates. A numeric LHS
+		// accumulated from a dynamic value (errorCount += result.errorCount)
+		// must coerce the RHS to float64 via jsrtNum.
+		if op == "+=" && (tr.isDynamicReceiver(right) || strings.HasPrefix(strings.TrimSpace(rs), "func() any")) {
+			switch {
+			case tr.isStringType(left):
+				tr.used["fmt"] = true
+				rr = "fmt.Sprint(" + rs + ")"
+			case tr.isFloatType(left):
+				tr.usedShim = true
+				rr = "jsrtNum(" + rs + ")"
+			}
 		}
 		// Dynamic property write: `obj.a[0].b = v` emits a jsrtGet chain as
 		// the LHS, which is not addressable in Go — rewrite the outermost
@@ -1417,6 +1424,11 @@ func (tr *transpiler) convertReturnExpr(e tsmorph.Node, s string) string {
 		return s
 	}
 	if info, ok := tr.aliases[t.Text()]; ok && info.unionValues != nil {
+		return "string(" + s + ")"
+	}
+	// A dynamic/any result returned from a `string` function (e.g. a ternary
+	// IIFE that type-checks as any) must be coerced, else the return fails.
+	if t.IsAny() {
 		return "string(" + s + ")"
 	}
 	return s
@@ -1643,9 +1655,19 @@ func (tr *transpiler) functionLiteral(n tsmorph.Node) (string, error) {
 	saved := tr.out
 	tmp := newGoWriter()
 	tr.out = tmp
-	if err := tr.emitBlock(body); err != nil {
-		tr.out = saved
-		return "", err
+	if ast.IsBlock(body.ASTNode()) {
+		if err := tr.emitBlock(body); err != nil {
+			tr.out = saved
+			return "", err
+		}
+	} else {
+		// Expression-bodied arrow (x => expr): emit `return <expr>;`.
+		expr, err := tr.emitExpr(body)
+		if err != nil {
+			tr.out = saved
+			return "", err
+		}
+		tr.out.line("return " + expr)
 	}
 	tr.out = saved
 	inner := strings.TrimSuffix(tmp.String(), "\n")

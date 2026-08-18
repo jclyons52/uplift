@@ -532,3 +532,41 @@ if ("k" in d) {
 		t.Errorf("Record member access should be dynamic jsrtGet:\n%s", out)
 	}
 }
+
+// TestExpressionBodiedArrow guards that `x => expr` callbacks emit `return
+// expr` (a block-body emit would produce an empty closure).
+func TestExpressionBodiedArrow(t *testing.T) {
+	p, _ := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
+	sf := p.CreateSourceFile("/ea.ts", `
+declare const s: any;
+declare const fn: any;
+const r = s.replace(re, (m: any, p1: any, p2: any) => fn(p1, p2));
+`)
+	tp := NewTranspiler(p, sf)
+	out, err := tp.Transpile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "return ") {
+		t.Errorf("expression-bodied arrow should emit return:\n%s", out)
+	}
+}
+
+// TestNumericAccumFromDynamic guards `x += obj.p` on a float64 LHS coerces the
+// dynamic RHS via jsrtNum (was an invalid float64 += any).
+func TestNumericAccumFromDynamic(t *testing.T) {
+	p, _ := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
+	sf := p.CreateSourceFile("/accum.ts", `
+declare const code: any[];
+let errorCount = 0;
+code.forEach((c: any) => { errorCount += c.errorCount; });
+`)
+	tp := NewTranspiler(p, sf)
+	out, err := tp.Transpile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "jsrtNum(") {
+		t.Errorf("numeric += from dynamic should coerce via jsrtNum:\n%s", out)
+	}
+}
