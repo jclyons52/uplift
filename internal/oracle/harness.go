@@ -131,6 +131,46 @@ func jsrtParse(s any) any {
 	return v
 }
 
+// jsrtKeys returns the string keys of a string-keyed map as []any (JS
+// Object.keys over a plain object).
+func jsrtKeys(m any) []any {
+	switch x := m.(type) {
+	case map[string]any:
+		out := make([]any, 0, len(x))
+		for k := range x {
+			out = append(out, k)
+		}
+		return out
+	}
+	return []any{}
+}
+
+// jsrtValues returns the values of a string-keyed map as []any.
+func jsrtValues(m any) []any {
+	switch x := m.(type) {
+	case map[string]any:
+		out := make([]any, 0, len(x))
+		for _, v := range x {
+			out = append(out, v)
+		}
+		return out
+	}
+	return []any{}
+}
+
+// jsrtEntries returns [key, value] tuples for a string-keyed map as []any.
+func jsrtEntries(m any) []any {
+	switch x := m.(type) {
+	case map[string]any:
+		out := make([]any, 0, len(x))
+		for k, v := range x {
+			out = append(out, []any{k, v})
+		}
+		return out
+	}
+	return []any{}
+}
+
 func assertStrictEqual(got, want any) {
 	markAssert()
 	if !jsrtDeepEqual(got, want) {

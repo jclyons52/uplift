@@ -961,6 +961,23 @@ func (tr *transpiler) callSpecial(n, callee tsmorph.Node) (string, bool, error) 
 			return "jsrtParse(" + argsJ + ")", true, nil
 		}
 	}
+	// Object static reflection helpers (keys/values/entries) -> jsrt shims.
+	// Impl beside the target (oracle harness), not in the auto-emitted shim,
+	// so a multi-file oracle package does not duplicate them.
+	if objS == "Object" {
+		switch propS {
+		case "keys":
+			return "jsrtKeys(" + argsJ + ")", true, nil
+		case "values":
+			return "jsrtValues(" + argsJ + ")", true, nil
+		case "entries":
+			return "jsrtEntries(" + argsJ + ")", true, nil
+		case "freeze":
+			// Object.freeze exists purely to prevent mutation at runtime;
+			// Go has no such affordance — the value passes through.
+			return argsJ, true, nil
+		}
+	}
 	switch propS {
 	case "push":
 		return "append(" + objS + ", " + argsJ + ")", true, nil

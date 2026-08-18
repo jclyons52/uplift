@@ -82,6 +82,40 @@ func TestAssertDeepStrictEqualMapping(t *testing.T) {
 	}
 }
 
+func TestJSONAndObjectShims(t *testing.T) {
+	// JSON.stringify/parse and Object.keys/values/entries/freeze map to the
+	// jsrt shims (impl supplied beside the target, e.g. the oracle harness).
+	// Guarded at the mapping level (substring) since the shim defs live
+	// outside a standalone transpile.
+	p, _ := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
+	sf := p.CreateSourceFile("/obj.ts", `
+const o: any = { a: 1 };
+const s = JSON.stringify(o);
+const p2 = JSON.parse(s);
+const ks = Object.keys(o);
+const es = Object.entries(o);
+const vs = Object.values(o);
+const f = Object.freeze(o);
+`)
+	tp := NewTranspiler(p, sf)
+	out, err := tp.Transpile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"jsrtStringify(", "jsrtParse(",
+		"jsrtKeys(", "jsrtEntries(", "jsrtValues(",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q\n--- output ---\n%s", want, out)
+		}
+	}
+	// Object.freeze passes its argument through (no runtime freeze in Go).
+	if strings.Contains(out, ".freeze(") || strings.Contains(out, ".Freeze(") {
+		t.Errorf("Object.freeze should pass through its argument, not call .freeze:\n%s", out)
+	}
+}
+
 func TestBankEndToEnd(t *testing.T) {
 	out := transpileFile(t, "../../testdata/bank.ts")
 
