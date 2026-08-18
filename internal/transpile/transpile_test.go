@@ -82,6 +82,24 @@ func TestAssertDeepStrictEqualMapping(t *testing.T) {
 	}
 }
 
+func TestDynamicAnyTraversal(t *testing.T) {
+	// The jsrt dynamic-value runtime: any-typed JS values are traversed via
+	// shims — member access -> jsrtGet, .length -> jsrtLen, x||y -> jsrtOr,
+	// for-of over any -> jsrtArray. This is the Phase B runtime core.
+	out := transpileFile(t, "../../testdata/dynamic_any.ts")
+	for _, want := range []string{
+		"jsrtArray(", // for (const result of results) where results is any
+		"jsrtGet(",   // result.filePath / result.line / result.severity
+		"jsrtLen(",   // result.messages.length
+		"jsrtOr(",    // result.line || 0
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q\n--- output ---\n%s", want, out)
+		}
+	}
+	compileGo(t, "dynamic.go", out)
+}
+
 func TestJSONAndObjectShims(t *testing.T) {
 	// JSON.stringify/parse and Object.keys/values/entries/freeze map to the
 	// jsrt shims (impl supplied beside the target, e.g. the oracle harness).

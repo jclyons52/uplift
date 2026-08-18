@@ -98,6 +98,11 @@ func Run(module, test, workDir string) (*Result, error) {
 	// 4. Fix-up pass: map test scaffolding to harness helpers.
 	fixUp(filepath.Join(godir, "ztest.go"), filepath.Base(module))
 
+	// Module and test are transpiled by separate invocations, so each may
+	// carry a full copy of the auto-emitted jsrt shim -> duplicate
+	// definitions in one package. Keep the first, strip the rest.
+	dedupeShim(filepath.Join(godir, basenameAsGo(module)), filepath.Join(godir, "ztest.go"))
+
 	// 5. Harness + build + run.
 	writeFile(filepath.Join(godir, "go.mod"), "module oracle\n\ngo 1.22\n")
 	writeFile(filepath.Join(godir, "harness_main.go"), harnessGo)
@@ -167,6 +172,31 @@ func fixUp(path, moduleBase string) {
 		}
 	}
 	writeFile(path, s)
+}
+
+// dedupeShim removes the auto-emitted jsrt shim block (everything from the
+// `// jsrt:` marker to EOF — the shim is the last code in a transpiled file,
+// trailing compile-finding comments are safe to drop too) from all but the
+// first file that carries one. Module and test are independently transpiled,
+// so each may contain a full copy; a single Go package needs exactly one.
+func dedupeShim(paths ...string) {
+	kept := false
+	for _, p := range paths {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		s := string(b)
+		i := strings.Index(s, "// jsrt:")
+		if i < 0 {
+			continue
+		}
+		if !kept {
+			kept = true
+			continue
+		}
+		_ = os.WriteFile(p, []byte(s[:i]), 0o644)
+	}
 }
 
 // parseOracleCounts extracts "N pass, M fail" after the marker.

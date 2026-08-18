@@ -42,6 +42,11 @@ type transpiler struct {
 	// declared holds names declared in this file; calls to identifiers
 	// outside it (module imports) are flagged as LLM work.
 	declared map[string]bool
+	// external holds identifiers bound by imports from sibling packages or
+	// external modules. They are unresolved (the Go import is a work item),
+	// so dynamic-runtime routing must NOT pull them in — they stay
+	// resilience placeholders.
+	external map[string]bool
 	// usedShim is set when the emitted code references the jsrt async
 	// shim; the shim source is appended and its imports declared.
 	usedShim bool

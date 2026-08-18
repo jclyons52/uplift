@@ -82,6 +82,41 @@ func (tr *transpiler) transpileStatement(n tsmorph.Node, topLevel bool) error {
 	}
 }
 
+// importBindingNames extracts the local identifiers bound by an import
+// declaration: `import fs from "x"`, `import {a, b as c} from "x"`,
+// `import * as ns from "x"`. Side-effect imports (`import "x"`) bind none.
+func importBindingNames(txt string) []string {
+	body := strings.TrimSpace(txt)
+	body = strings.TrimSpace(strings.TrimPrefix(body, "import"))
+	if i := strings.Index(body, "from"); i >= 0 {
+		body = body[:i]
+	}
+	body = strings.TrimSpace(strings.Trim(body, "\"'`"))
+	if body == "" || body == "{" {
+		return nil
+	}
+	if strings.HasPrefix(body, "*") {
+		// `* as ns`
+		body = strings.Replace(body, "* as ", "", 1)
+	}
+	body = strings.Trim(body, "{}")
+	var out []string
+	for _, part := range strings.Split(body, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if j := strings.Index(part, " as "); j >= 0 {
+			part = strings.TrimSpace(part[j+4:])
+		}
+		part = strings.TrimSpace(strings.Trim(part, "\"'`"))
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
 // handleImport maps a TS import to nothing (Go packages have no import
 // statements for same-package files): imports that resolve to another file
 // of the same Go package are dropped — the identifiers resolve directly —
@@ -91,6 +126,15 @@ func (tr *transpiler) handleImport(n tsmorph.Node) error {
 	spec := tr.moduleSpecifier(n)
 	if spec == "" {
 		return nil
+	}
+	// Bindings from this import are unresolved (sibling/external) regardless
+	// of classification in single-file mode; record them so dynamic-any
+	// routing leaves them as resilience placeholders.
+	if tr.external == nil {
+		tr.external = map[string]bool{}
+	}
+	for _, nm := range importBindingNames(n.Text()) {
+		tr.external[nm] = true
 	}
 	if tr.classify == nil {
 		return nil // single-file mode: imports were always dropped

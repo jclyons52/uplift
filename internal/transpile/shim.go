@@ -71,6 +71,51 @@ func jsrtGet(m, k any) any {
 	return nil
 }
 
+// jsrtLen implements JS .length on an any receiver (string, slice, map).
+// Returns float64 so it composes with JS-number arithmetic.
+func jsrtLen(x any) float64 {
+	switch v := x.(type) {
+	case string:
+		return float64(len([]rune(v)))
+	case []any:
+		return float64(len(v))
+	case map[string]any:
+		return float64(len(v))
+	}
+	return 0
+}
+
+// jsrtOr implements JS "a || b": a if truthy, else b.
+func jsrtOr(a, b any) any {
+	if jsrtTruthy(a) {
+		return a
+	}
+	return b
+}
+
+// jsrtArray coerces an any iterable (map or slice) to a []any so a JS
+// "for (const x of col)" can be emitted as a Go for-range. Map iteration
+// yields the values; slices pass through.
+func jsrtArray(x any) []any {
+	switch v := x.(type) {
+	case []any:
+		return v
+	case map[string]any:
+		out := make([]any, 0, len(v))
+		for _, val := range v {
+			out = append(out, val)
+		}
+		return out
+	case string:
+		out := make([]any, 0, len(v))
+		for _, r := range v {
+			out = append(out, string(r))
+		}
+		return out
+	}
+	return nil
+}
+
 // jsrtReplace implements s.replace(re, fn): re replaces every match,
 // calling fn(match, group1, group2, ...) via reflection (the transpiled
 // callback has JS arity, not variadic). s is untyped (any) because transpiled JS

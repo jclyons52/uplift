@@ -364,10 +364,19 @@ func (tr *transpiler) emitForInOf(n tsmorph.Node) error {
 			loopVar = v
 		}
 	}
+	rangeExpr := it
+	// Iterating an any/`Object`-typed collection cannot range in Go — coerce
+	// through the jsrt dynamic runtime so `for x of any` becomes a for-range
+	// over []any (map iteration yields values, matching JS `of` semantics).
+	if tr.isDynamicReceiver(expr) {
+		tr.usedShim = true
+		tr.recordGap(SevApprox, "dynamic", n, "for-each over dynamic value via jsrtArray")
+		rangeExpr = "jsrtArray(" + it + ")"
+	}
 	if isIn {
-		tr.out.line("for " + loopVar + " := range " + it + " {")
+		tr.out.line("for " + loopVar + " := range " + rangeExpr + " {")
 	} else {
-		tr.out.line("for _, " + loopVar + " := range " + it + " {")
+		tr.out.line("for _, " + loopVar + " := range " + rangeExpr + " {")
 	}
 	tr.out.indent()
 	if ast.IsBlock(body.ASTNode()) {
@@ -731,6 +740,52 @@ func (tr *transpiler) numericLiteral(n tsmorph.Node) string {
 	return t
 }
 
+// isExternalIdent reports whether a receiver is an unresolved external
+// module reference: a bare identifier bound by a sibling/external import, or
+// a require("...") call (CJS). These have no Go definition — their accesses
+// must stay resilience placeholders, never dynamic-runtime reads.
+func (tr *transpiler) isExternalIdent(n tsmorph.Node) bool {
+	if n.IsZero() {
+		return false
+	}
+	if n.Kind() == ast.KindIdentifier && tr.external[n.Text()] {
+		return true
+	}
+	if ast.IsCallExpression(n.ASTNode()) {
+		ce, ok := n.AsCallExpression()
+		if ok {
+			cal, ok := ce.GetExpression()
+			if ok && ast.IsIdentifier(cal.ASTNode()) && cal.Text() == "require" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isDynamicReceiver reports whether a node carries the JS dynamic value
+// model: an explicit any, a JSDoc `Object` param, or an inferred map/slice of
+// any (the representation ts2go gives untyped JS values). Such values must be
+// traversed through the jsrt runtime, not Go fields/operators.
+func (tr *transpiler) isDynamicReceiver(n tsmorph.Node) bool {
+	if n.IsZero() {
+		return false
+	}
+	// A bare identifier bound by a sibling/external import is unresolved —
+	// it must stay a resilience placeholder, not be traversed as a dynamic
+	// value we actually hold.
+	if tr.isExternalIdent(n) {
+		return false
+	}
+	t := n.Type()
+	if t.IsUnknown() {
+		return false
+	}
+	txt := t.Text()
+	return t.IsAny() || strings.Contains(txt, "Object") ||
+		strings.Contains(txt, "map[string]any") || strings.Contains(txt, "[]any")
+}
+
 // propertyAccess renders `obj.prop` — mapping TS built-ins to Go:
 // .length → len(), .push → append.
 func (tr *transpiler) propertyAccess(n tsmorph.Node) (string, error) {
@@ -748,15 +803,27 @@ func (tr *transpiler) propertyAccess(n tsmorph.Node) (string, error) {
 		return "", err
 	}
 	propS := prop.Text()
-	// Property access on `any` cannot compile in Go — flag for the LLM.
-	if t := obj.Type(); !t.IsUnknown() && t.IsAny() {
-		// The access itself often still resolves to a concrete type: that's
-		// a tightenable site — annotate the object's source type and the
-		// whole access stops being dynamic.
+	// Dynamic receivers (any / JSDoc `Object` / map-of-any) cannot be
+	// addressed as Go struct fields — route reads through the jsrt dynamic
+	// runtime: .length -> jsrtLen, other props -> jsrtGet (original,
+	// lowercase key). The access often still resolves to a concrete type:
+	// annotate the source type so the whole access stops being dynamic.
+	if tr.isDynamicReceiver(obj) {
 		if at := n.Type(); !at.IsUnknown() && !at.IsAny() {
 			tr.tightenable("dynamic", n, at.Text(), "any")
 		}
-		tr.recordGap(SevTodo, "dynamic", n, "dynamic property access %s.%s on any", objS, propS)
+		tr.usedShim = true
+		if propS == "length" {
+			tr.recordGap(SevApprox, "dynamic", n, "dynamic .length on %s via jsrtLen", objS)
+			return "jsrtLen(" + objS + ")", nil
+		}
+		tr.recordGap(SevApprox, "dynamic", n, "dynamic property access %s.%s via jsrtGet", objS, propS)
+		return "jsrtGet(" + objS + ", \"" + propS + "\")", nil
+	}
+	// Unresolved sibling/external import identifier: keep the resilience
+	// placeholder — it must never become a broken Go field access.
+	if tr.isExternalIdent(obj) {
+		tr.recordGap(SevTodo, "import", n, "property access %s.%s on external import", objS, propS)
 		return placeholderExpr(objS + "." + propS), nil
 	}
 	switch propS {
@@ -1171,6 +1238,14 @@ func (tr *transpiler) binaryExpression(n tsmorph.Node) (string, error) {
 	case "&&":
 		return ls + " && " + rs, nil
 	case "||":
+		// JS `a || b` on dynamic operands has JS truthiness semantics; the
+		// plain `||` only works on bools in Go. Route through jsrtOr when
+		// either side is a dynamic value so e.g. `message.line || 0` works.
+		if tr.isDynamicReceiver(left) || tr.isDynamicReceiver(right) {
+			tr.usedShim = true
+			tr.recordGap(SevApprox, "dynamic", n, "dynamic || via jsrtOr")
+			return "jsrtOr(" + ls + ", " + rs + ")", nil
+		}
 		return ls + " || " + rs, nil
 	case "??":
 		return tr.nullishCoalesce(ls, rs), nil
