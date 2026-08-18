@@ -97,6 +97,14 @@ func condExpr(s string) string {
 	if strings.HasPrefix(s, "any(nil)") {
 		return "false" + strings.TrimPrefix(s, "any(nil)")
 	}
+	// A condition that produced a jsrt dynamic value (member access, dynamic
+	// ||/&&) is `any`, not bool. JS semantics: `if (x)` tests x's truthiness,
+	// so wrap in jsrtTruthy (a no-op for real bools). This keeps e.g.
+	// `if (message.fatal || message.severity === 2)` compiling and correct.
+	if strings.Contains(s, "jsrtOr(") || strings.Contains(s, "jsrtGet(") ||
+		strings.Contains(s, "jsrtLen(") || strings.Contains(s, "jsrt(") {
+		return "jsrtTruthy(" + s + ")"
+	}
 	return s
 }
 

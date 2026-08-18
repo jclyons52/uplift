@@ -407,6 +407,18 @@ func (tr *transpiler) goTypeReference(n tsmorph.Node) (string, error) {
 		}
 		return info.target, nil
 	}
+	// JS root types with no direct Go equivalent: `Object` (and lowercase
+	// `object`) become the dynamic map we traverse via jsrtGet; Function and
+	// RegExp have runtime-type equivalents.
+	switch base {
+	case "Object", "object":
+		return "map[string]any", nil
+	case "Function", "CallableFunction":
+		return "any", nil
+	case "RegExp":
+		tr.used["regexp"] = true
+		return "*regexp.Regexp", nil
+	}
 	return base, nil
 }
 

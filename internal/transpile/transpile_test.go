@@ -100,6 +100,24 @@ func TestDynamicAnyTraversal(t *testing.T) {
 	compileGo(t, "dynamic.go", out)
 }
 
+func TestObjectParamAndTruthyCondition(t *testing.T) {
+	// JSDoc @param {Object} must map to map[string]any (not an undefined Go
+	// type), and a dynamic `||` used as an if-condition must be truthiness-
+	// wrapped (jsrtTruthy) so it compiles and matches JS semantics.
+	out := transpileFile(t, "../../testdata/object_param.ts")
+	for _, want := range []string{
+		"map[string]any",     // @param {Object} -> map[string]any
+		"jsrtGet(message, ",  // message.fatal / message.severity
+		"jsrtOr(",            // message.fatal || message.severity === 2
+		"jsrtTruthy(jsrtOr(", // the if-condition truthiness wrap
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q\n--- output ---\n%s", want, out)
+		}
+	}
+	compileGo(t, "object.go", out)
+}
+
 func TestJSONAndObjectShims(t *testing.T) {
 	// JSON.stringify/parse and Object.keys/values/entries/freeze map to the
 	// jsrt shims (impl supplied beside the target, e.g. the oracle harness).
