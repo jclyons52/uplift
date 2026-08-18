@@ -138,6 +138,10 @@ func (r *Result) HasExternalChildren(name string) bool {
 
 // Dependency indexes -------------------------------------------------------
 
+// FindNodeModules returns the node_modules directory for a base path, walking
+// up the tree. Empty if none found.
+func FindNodeModules(base string) string { return findNodeModules(base) }
+
 // findNodeModules locates a node_modules dir for a base directory, walking up.
 func findNodeModules(base string) string {
 	dir, err := filepath.Abs(base)

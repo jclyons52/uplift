@@ -40,6 +40,11 @@ func main() {
 		runDeps(os.Args[2:])
 		return
 	}
+	// Subcommand: `ts2go scaffold <dir>` — per-leaf library repo skeletons.
+	if len(os.Args) > 1 && os.Args[1] == "scaffold" {
+		runScaffold(os.Args[2:])
+		return
+	}
 	fs := flag.NewFlagSet("ts2go", flag.ExitOnError)
 	outFlag := fs.String("o", "", "output file (single input) or directory (multiple inputs); default: next to the input")
 	pkgFlag := fs.String("package", "", "Go package name for multi-file output (default: output directory base name)")
