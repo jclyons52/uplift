@@ -52,6 +52,36 @@ func compileGo(t *testing.T, name, src string) {
 	}
 }
 
+func TestRegExpMethodCalls(t *testing.T) {
+	// Oracle-surfaced regression: re.test(s) was emitted as re.Test(s) (the
+	// method name got export-cased) — the Go regexp package has no .Test.
+	out := transpileFile(t, "../../testdata/regex_call.ts")
+	for _, want := range []string{
+		"regexp.MustCompile", // regex literal still maps
+		".MatchString(",      // re.test(s) -> re.MatchString(s)
+		".FindString(",       // re.exec(s) -> re.FindString(s)
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q\n--- output ---\n%s", want, out)
+		}
+	}
+	// The mangled .Test method must NOT appear.
+	if strings.Contains(out, ".Test(") {
+		t.Errorf("regexp .test must not be export-cased to .Test:\n%s", out)
+	}
+	compileGo(t, "regex.go", out)
+}
+
+func TestAssertDeepStrictEqualMapping(t *testing.T) {
+	// Oracle-surfaced: chai assert.deepStrictEqual gapped to a vacuous pass
+	// (dynamic access on any) instead of a real check — it must map to the
+	// strict structural helper assertDeepEqual.
+	out := transpileFile(t, "../../testdata/assert_deep.ts")
+	if !strings.Contains(out, "assertDeepEqual(") {
+		t.Errorf("assert.deepStrictEqual should map to assertDeepEqual:\n%s", out)
+	}
+}
+
 func TestBankEndToEnd(t *testing.T) {
 	out := transpileFile(t, "../../testdata/bank.ts")
 

@@ -926,6 +926,10 @@ func (tr *transpiler) callSpecial(n, callee tsmorph.Node) (string, bool, error) 
 			return "assertEqual(" + argsJ + ")", true, nil
 		case "deepEqual":
 			return "assertDeepEqual(" + argsJ + ")", true, nil
+		case "deepStrictEqual":
+			// chai assert.deepStrictEqual: strict structural equality.
+			// reflect.DeepEqual is strict, so it is the right Go target.
+			return "assertDeepEqual(" + argsJ + ")", true, nil
 		case "isTrue":
 			return "assertIsTrue(" + argsJ + ")", true, nil
 		case "isFalse":
@@ -933,6 +937,17 @@ func (tr *transpiler) callSpecial(n, callee tsmorph.Node) (string, bool, error) 
 		case "ok":
 			return "assertOK(" + argsJ + ")", true, nil
 		}
+	}
+	// RegExp instance methods (receiver is a RegExp type): re.test(s) -> the
+	// Go regexp package uses MatchString, and re.exec(s) -> FindString. This
+	// must be special-cased so the generic renderer does not export-case the
+	// method name into `.Test` (which does not exist on *regexp.Regexp).
+	if (propS == "test" || propS == "exec") && strings.Contains(obj.Type().Text(), "RegExp") {
+		tr.used["regexp"] = true
+		if propS == "test" {
+			return objS + ".MatchString(" + argsJ + ")", true, nil
+		}
+		return objS + ".FindString(" + argsJ + ")", true, nil
 	}
 	switch propS {
 	case "push":
