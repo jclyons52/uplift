@@ -6,5 +6,8 @@ function format(results: any): string {
         const n = result.messages.length;
         out += result.filePath + ":" + n + ":" + severity + ":" + line;
     }
+    results.forEach((r: any) => {
+        out += r.name;
+    });
     return out;
 }

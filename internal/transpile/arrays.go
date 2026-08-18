@@ -66,6 +66,13 @@ func (tr *transpiler) emitForEachStatement(call tsmorph.Node) (bool, error) {
 	if err != nil {
 		return true, err
 	}
+	// Iterating an any/`Object`-typed collection cannot range in Go — coerce
+	// through the jsrt dynamic runtime (map iteration yields values).
+	rangeExpr := objS
+	if tr.isDynamicReceiver(obj) {
+		tr.usedShim = true
+		rangeExpr = "jsrtArray(" + objS + ")"
+	}
 	args := call.GetArguments()
 	if len(args) == 0 {
 		return true, fmt.Errorf("forEach without callback")
@@ -83,9 +90,9 @@ func (tr *transpiler) emitForEachStatement(call tsmorph.Node) (bool, error) {
 		}
 		// Go range gives (i, v) — TS forEach gives (v, i).
 		if idx != "" {
-			tr.out.line("for " + idx + ", " + elem + " := range " + objS + " {")
+			tr.out.line("for " + idx + ", " + elem + " := range " + rangeExpr + " {")
 		} else {
-			tr.out.line("for _, " + elem + " := range " + objS + " {")
+			tr.out.line("for _, " + elem + " := range " + rangeExpr + " {")
 		}
 		tr.out.indent()
 		// Wrap the body in an IIFE so `return` inside the callback only
@@ -102,7 +109,7 @@ func (tr *transpiler) emitForEachStatement(call tsmorph.Node) (bool, error) {
 		return true, nil
 	}
 	// Non-literal callback: plain loop calling it.
-	tr.out.line("for _, " + elem + " := range " + objS + " {")
+	tr.out.line("for _, " + elem + " := range " + rangeExpr + " {")
 	tr.out.indent()
 	s, err := tr.emitExpr(args[0])
 	if err != nil {
@@ -172,6 +179,14 @@ func (tr *transpiler) arrayMethodCall(n tsmorph.Node) (string, bool, error) {
 	if err != nil {
 		return "", true, err
 	}
+	// Iterating an any/`Object`-typed collection cannot range in Go — coerce
+	// through the jsrt dynamic runtime (map iteration yields values, matching
+	// JS `of`/iteration semantics).
+	rangeExpr := objS
+	if tr.isDynamicReceiver(obj) {
+		tr.usedShim = true
+		rangeExpr = "jsrtArray(" + objS + ")"
+	}
 	tr.recordGap(SevApprox, "iteration", n, "%s mapped to loop", method)
 
 	elemGo, retGo := tr.callbackGoTypes(args[0], obj)
@@ -193,14 +208,14 @@ func (tr *transpiler) arrayMethodCall(n tsmorph.Node) (string, bool, error) {
 	switch method {
 	case "map":
 		fmt.Fprintf(&b, "func() []%s {\n%s := []%s{}\nfor _, %s := range %s {\n%s = append(%s, %s)\n}\nreturn %s\n}()",
-			retGo, out, retGo, cbElem, objS, out, out, bodyS, out)
+			retGo, out, retGo, cbElem, rangeExpr, out, out, bodyS, out)
 	case "filter":
 		cond := bodyS
 		if cb.isExpr {
 			cond = stripClosure(bodyS)
 		}
 		fmt.Fprintf(&b, "func() []%s {\n%s := []%s{}\nfor _, %s := range %s {\nif %s {\n%s = append(%s, %s)\n}\n}\nreturn %s\n}()",
-			elemGo, out, elemGo, cbElem, objS, cond, out, out, cbElem, out)
+			elemGo, out, elemGo, cbElem, rangeExpr, cond, out, out, cbElem, out)
 	case "reduce":
 		// TS reduce callback signature is (acc, curValue[, i]).
 		acc, v := "acc", "v"
@@ -225,7 +240,7 @@ func (tr *transpiler) arrayMethodCall(n tsmorph.Node) (string, bool, error) {
 			expr = stripClosure(bodyS)
 		}
 		fmt.Fprintf(&b, "func() %s {\nvar %s %s = %s\nfor _, %s := range %s {\n%s = %s\n}\nreturn %s\n}()",
-			retGo, acc, retGo, init, v, objS, acc, expr, acc)
+			retGo, acc, retGo, init, v, rangeExpr, acc, expr, acc)
 	}
 	return b.String(), true, nil
 }

@@ -1227,8 +1227,17 @@ func (tr *transpiler) binaryExpression(n tsmorph.Node) (string, error) {
 	// TS idiom but has no Go form — wrap in an IIFE that assigns then yields
 	// the target.
 	if isAssignmentOp(op) {
+		rr := rs
+		// x += <dynamic>: a string LHS concatenated with an any-typed value
+		// (member access, dynamic ||, or an any-returning IIFE) must coerce
+		// the RHS to string — JS `+=` string-concatenates.
+		if op == "+=" && tr.isStringType(left) &&
+			(tr.isDynamicReceiver(right) || strings.HasPrefix(strings.TrimSpace(rs), "func() any")) {
+			tr.used["fmt"] = true
+			rr = "fmt.Sprint(" + rs + ")"
+		}
 		tr.recordGap(SevApprox, "expression", n, "assignment used as a value — IIFE assigns then returns; verify the target type")
-		return "func() any { " + ls + " " + op + " " + rs + "; return " + ls + " }()", nil
+		return "func() any { " + ls + " " + op + " " + rr + "; return " + ls + " }()", nil
 	}
 	switch op {
 	case "===", "==":
