@@ -2,6 +2,7 @@ package transpile
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -792,7 +793,8 @@ func (tr *transpiler) isDynamicReceiver(n tsmorph.Node) bool {
 	}
 	txt := t.Text()
 	if t.IsAny() || strings.Contains(txt, "Object") ||
-		strings.Contains(txt, "map[string]any") || strings.Contains(txt, "[]any") {
+		strings.Contains(txt, "map[string]any") || strings.Contains(txt, "[]any") ||
+		strings.Contains(txt, "{") {
 		return true
 	}
 	// A[expr] where A is a dynamic container yields a dynamic value even when
@@ -887,10 +889,10 @@ func (tr *transpiler) elementAccess(n tsmorph.Node) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Indexing an `any` cannot compile in Go — route through jsrtGet, which
-	// handles map/slice/string receivers dynamically (with an approx gap so
-	// the LLM still sees the tightenable site).
-	if t := obj.Type(); !t.IsUnknown() && t.IsAny() {
+	// Indexing a dynamic container (any / `{`-typed / map[string]any / []any)
+	// cannot compile as `x[i]` in Go — route through jsrtGet (with an approx
+	// gap so the LLM still sees the tightenable site).
+	if tr.isDynamicReceiver(obj) {
 		if at := n.Type(); !at.IsUnknown() && !at.IsAny() {
 			tr.tightenable("dynamic", n, at.Text(), "any")
 		}
@@ -1223,6 +1225,11 @@ func (tr *transpiler) newExpression(n tsmorph.Node) (string, error) {
 	return "New" + callee + "(" + args + ")", nil
 }
 
+// jsrtGetChain matches an emitted dynamic-read chain used as an assignment
+// LHS: `jsrtGet(BASE, "KEY")`. Group 1 is the base (which may itself be a
+// jsrtGet chain of reads); group 2 is the outermost property key to write.
+var jsrtGetChain = regexp.MustCompile(`^jsrtGet\((.+), "([^"]+)"\)$`)
+
 func (tr *transpiler) binaryExpression(n tsmorph.Node) (string, error) {
 	be, _ := n.AsBinaryExpression()
 	left, ok := be.Left()
@@ -1257,6 +1264,18 @@ func (tr *transpiler) binaryExpression(n tsmorph.Node) (string, error) {
 			(tr.isDynamicReceiver(right) || strings.HasPrefix(strings.TrimSpace(rs), "func() any")) {
 			tr.used["fmt"] = true
 			rr = "fmt.Sprint(" + rs + ")"
+		}
+		// Dynamic property write: `obj.a[0].b = v` emits a jsrtGet chain as
+		// the LHS, which is not addressable in Go — rewrite the outermost
+		// access to a jsrtSet write. `jsrtGet(BASE, "KEY") = v` becomes
+		// `jsrtSet(BASE, "KEY", v)`. A void IIFE keeps fixUp's scaffold
+		// `func() any {}`->`func() {}` pass from corrupting the body's return.
+		if op == "=" && strings.HasPrefix(ls, "jsrtGet(") {
+			if sub := jsrtGetChain.FindStringSubmatch(ls); sub != nil {
+				tr.usedShim = true
+				tr.recordGap(SevApprox, "dynamic", n, "dynamic property write via jsrtSet")
+				return fmt.Sprintf("func() { jsrtSet(%s, \"%s\", %s) }()", sub[1], sub[2], rr), nil
+			}
 		}
 		tr.recordGap(SevApprox, "expression", n, "assignment used as a value — IIFE assigns then returns; verify the target type")
 		return "func() any { " + ls + " " + op + " " + rr + "; return " + ls + " }()", nil

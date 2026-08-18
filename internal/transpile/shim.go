@@ -54,18 +54,43 @@ func jsrtIn(key, m any) bool {
 	return false
 }
 
+// jsrtSet implements JS dynamic write m[k] = v on an any receiver (map).
+func jsrtSet(m any, k string, v any) {
+	if mm, ok := m.(map[string]any); ok {
+		mm[k] = v
+	}
+}
+
+// toIndex coerces a JS-number-ish index (Go int/int32/int64/float64) so a
+// transpiled arr[i] works whether i is an int literal or a float64.
+func toIndex(k any) (int, bool) {
+	switch i := k.(type) {
+	case int:
+		return i, true
+	case int32:
+		return int(i), true
+	case int64:
+		return int(i), true
+	case float64:
+		if i == float64(int(i)) {
+			return int(i), true
+		}
+	}
+	return 0, false
+}
+
 // jsrtGet implements JS dynamic access m[k] on an any receiver.
 func jsrtGet(m, k any) any {
 	switch mm := m.(type) {
 	case map[string]any:
 		return mm[fmt.Sprint(k)]
 	case []any:
-		if i, ok := k.(float64); ok && i == float64(int(i)) && int(i) >= 0 && int(i) < len(mm) {
-			return mm[int(i)]
+		if i, ok := toIndex(k); ok && i >= 0 && i < len(mm) {
+			return mm[i]
 		}
 	case string:
-		if i, ok := k.(float64); ok && i == float64(int(i)) && int(i) >= 0 && int(i) < len([]rune(mm)) {
-			return string([]rune(mm)[int(i)])
+		if i, ok := toIndex(k); ok && i >= 0 && i < len([]rune(mm)) {
+			return string([]rune(mm)[i])
 		}
 	}
 	return nil

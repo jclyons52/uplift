@@ -195,8 +195,63 @@ func dedupeShim(paths ...string) {
 			kept = true
 			continue
 		}
-		_ = os.WriteFile(p, []byte(s[:i]), 0o644)
+		// Strip the shim block (marker onward; trailing compile-finding
+		// comments are safe to drop) and prune imports that are now unused.
+		_ = os.WriteFile(p, []byte(pruneImports(s[:i])), 0o644)
 	}
+}
+
+// pruneImports removes entries from the standard `import (` block whose
+// package is not referenced in the rest of the file, so a transpiled file
+// that lost its shim (whose imports are shim-only) still compiles.
+func pruneImports(s string) string {
+	start := strings.Index(s, "import (")
+	if start < 0 {
+		return s
+	}
+	depth := 0
+	end := -1
+	for k := start; k < len(s); k++ {
+		switch s[k] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				end = k
+			}
+		}
+		if end >= 0 {
+			break
+		}
+	}
+	if end < 0 {
+		return s
+	}
+	block := s[start : end+1]
+	rest := s[:start] + s[end+1:]
+	var keep []string
+	for _, ln := range strings.Split(block, "\n") {
+		tr := strings.TrimSpace(ln)
+		if strings.HasPrefix(tr, "\"") && strings.HasSuffix(tr, "\"") {
+			p := strings.Trim(tr, "\"")
+			short := p
+			if i := strings.LastIndex(p, "/"); i >= 0 {
+				short = p[i+1:]
+			}
+			// blank alias (`json "encoding/json"`) handled later if needed;
+			// plain stdlib form referenced as `pkg.` or `pkg(`.
+			if !referenced(short, rest) {
+				continue
+			}
+		}
+		keep = append(keep, ln)
+	}
+	return strings.TrimRight(s[:start], " 	") + "\n" + strings.Join(keep, "\n") + s[end+1:]
+}
+
+func referenced(short, body string) bool {
+	return strings.Contains(body, short+".") || strings.Contains(body, short+"(")
 }
 
 // parseOracleCounts extracts "N pass, M fail" after the marker.

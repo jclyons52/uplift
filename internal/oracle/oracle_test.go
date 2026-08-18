@@ -2,6 +2,7 @@ package oracle
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
 )
 
@@ -53,5 +54,33 @@ func TestJsonParity(t *testing.T) {
 	}
 	if !r.ParityOK() {
 		t.Errorf("parity diverged: %s\nJS:\n%s\nGO:\n%s", r.Summary(), r.JSOut, r.GoRunOut)
+	}
+}
+
+// TestFormatterParity drives the Phase B dynamic-any runtime over real,
+// purely `any`-typed ESLint formatter modules + their chai-assert tests.
+// These modules traverse `results` as raw `any` (member access, .forEach,
+// .length, ||, dynamic writes, JSON), so they exercise the jsrt value model.
+func TestFormatterParity(t *testing.T) {
+	if testing.Short() {
+		t.Skip("oracle run exercises the full pipeline")
+	}
+	base := "/tmp/eslint-inspect/"
+	pairs := []struct{ mod, test string }{
+		{base + "lib/cli-engine/formatters/compact.js", base + "tests/lib/cli-engine/formatters/compact.js"},
+		{base + "lib/cli-engine/formatters/unix.js", base + "tests/lib/cli-engine/formatters/unix.js"},
+	}
+	for _, p := range pairs {
+		r, err := Run(p.mod, p.test, t.TempDir())
+		if err != nil {
+			t.Fatalf("%s: run: %v", filepath.Base(p.mod), err)
+		}
+		fmt.Printf("FORMATTER SUMMARY >>> %s\n", r.Summary())
+		if !r.GoBuildOK {
+			t.Fatalf("%s: go build failed:\n%s", filepath.Base(p.mod), r.GoBuildEr)
+		}
+		if !r.ParityOK() {
+			t.Errorf("%s: parity diverged: %s\nJS:\n%s\nGO:\n%s", filepath.Base(p.mod), r.Summary(), r.JSOut, r.GoRunOut)
+		}
 	}
 }
