@@ -198,11 +198,35 @@ func (l *lifter) maybeAnnotate(n tsmorph.Node) {
 	sig := sigs[0]
 
 	// Return type: for arrows, insert before the `=>`; otherwise before the
-	// body's opening brace.
+	// body's opening brace. An unparenthesized single-param arrow annotated
+	// here (`message => …` → `(message): any[] => …`) must wrap the param in
+	// parens so the transcripted TS reparses (see `unpar` note below).
+	firstParamStart, firstParamEnd := 0, 0
+	if isArrow {
+		for _, c := range n.Children() {
+			if ast.IsParameterDeclaration(c.ASTNode()) {
+				firstParamStart = c.Pos()
+				firstParamEnd = c.End()
+				break
+			}
+		}
+	}
+	unpar := isArrow && l.src[n.Pos()] != '('
+	if isArrow {
+		for _, c := range n.Children() {
+			if ast.IsParameterDeclaration(c.ASTNode()) {
+				firstParamStart, firstParamEnd = c.Pos(), c.End()
+				break
+			}
+		}
+	}
 	ret := sig.ReturnType()
 	if !ret.IsUnknown() && !ret.IsAny() && !ret.IsVoid() && !ret.IsNever() {
 		if isArrow {
 			if off := arrowFatArrow(node); off >= 0 {
+				if unpar {
+					l.insert = append(l.insert, insertion{off: firstParamStart, text: "("}, insertion{off: firstParamEnd, text: ")"})
+				}
 				l.insert = append(l.insert, insertion{off: off, text: ": " + clean(ret.Text())})
 			}
 		} else if body, ok := n.GetBody(); ok {
@@ -211,6 +235,10 @@ func (l *lifter) maybeAnnotate(n tsmorph.Node) {
 	}
 
 	// Parameter types, aligned to the call signature by index.
+	// An unparenthesized single bare param (`message => …`) that we annotate
+	// becomes `message: T => …`, which ts-go-morph mis-parses back as
+	// `map(message, T)`. Parenthesize so the transcripted TS reparses:
+	// `(message: T) => …`.
 	pi := 0
 	for _, c := range n.Children() {
 		if !ast.IsParameterDeclaration(c.ASTNode()) {
@@ -220,7 +248,10 @@ func (l *lifter) maybeAnnotate(n tsmorph.Node) {
 		if pi < len(sig.Parameters()) {
 			pt := sig.Parameters()[pi].Type
 			if !pt.IsUnknown() && !pt.IsAny() {
-				l.annotateParam(c, pt.Text(), paramIsRest)
+				if unpar {
+					l.insert = append(l.insert, insertion{off: c.Pos(), text: "("})
+				}
+				l.annotateParam(c, pt.Text(), paramIsRest, unpar)
 			}
 		}
 		pi++
@@ -229,7 +260,7 @@ func (l *lifter) maybeAnnotate(n tsmorph.Node) {
 
 // annotateParam inserts `: T` after a param's name node. Destructured params
 // and params that already carry an annotation are skipped.
-func (l *lifter) annotateParam(param tsmorph.Node, resolved, isRest string) {
+func (l *lifter) annotateParam(param tsmorph.Node, resolved, isRest string, closeParen bool) {
 	// Skip if the param already has an inline type annotation.
 	if strings.Contains(oneLine(param.Text()), ":") {
 		return
@@ -257,6 +288,9 @@ func (l *lifter) annotateParam(param tsmorph.Node, resolved, isRest string) {
 		text = "?: " + typ
 	default:
 		text = ": " + typ
+	}
+	if closeParen {
+		text += ")"
 	}
 	l.insert = append(l.insert, insertion{off: name.End(), text: text})
 }

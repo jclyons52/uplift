@@ -152,3 +152,15 @@ const row = null;
 		t.Errorf("inline object typedef should lift with balanced braces:\n%s", out)
 	}
 }
+
+// TestLiftParenthesizesAnnotatedUnparenthesizedArrow guards against a parser
+// round-trip bug: an unparenthesized arrow param annotated by the lift
+// (`message => …` → `message: any[] => …`) is mis-parsed by ts-go-morph back
+// as `map(message, any[])`, mangling the transpile. The lift must wrap the
+// param in parens: `(message): any[] => …`.
+func TestLiftParenthesizesAnnotatedUnparenthesizedArrow(t *testing.T) {
+	out := lift(t, "/** @param {Array} messages */\nconst x = messages.map(message => { return [message.line]; });\n")
+	if !strings.Contains(out, "(message)") {
+		t.Errorf("unparenthesized arrow param should be parenthesized when annotated:\n%s", out)
+	}
+}
