@@ -219,6 +219,15 @@ func (tr *transpiler) pushStatement(call tsmorph.Node) (string, bool, error) {
 	if err != nil {
 		return "", true, err
 	}
+	// Dynamic-key push: `obj.messages.push(x)` where objS is a jsrtGet read
+	// (`jsrtGet(diag, "messages") = append(...)`) is not addressable — route
+	// through a jsrtPush that mutates the map value in place.
+	if strings.HasPrefix(objS, "jsrtGet(") {
+		if sub := jsrtGetChain.FindStringSubmatch(objS); sub != nil {
+			tr.usedShim = true
+			return "jsrtPush(" + sub[1] + ", \"" + sub[2] + "\", " + args + ")", true, nil
+		}
+	}
 	return objS + " = append(" + objS + ", " + args + ")", true, nil
 }
 
@@ -793,7 +802,7 @@ func (tr *transpiler) isDynamicReceiver(n tsmorph.Node) bool {
 	}
 	txt := t.Text()
 	if t.IsAny() || strings.Contains(txt, "Object") ||
-		strings.Contains(txt, "map[string]any") || strings.Contains(txt, "[]any") ||
+		strings.Contains(txt, "Record<") || strings.Contains(txt, "map[string]any") || strings.Contains(txt, "[]any") ||
 		strings.Contains(txt, "{") {
 		return true
 	}
@@ -1027,6 +1036,10 @@ func (tr *transpiler) callSpecial(n, callee tsmorph.Node) (string, bool, error) 
 			return "assertIsFalse(" + argsJ + ")", true, nil
 		case "ok":
 			return "assertOK(" + argsJ + ")", true, nil
+		case "include":
+			return "assertInclude(" + argsJ + ")", true, nil
+		case "notInclude":
+			return "assertNotInclude(" + argsJ + ")", true, nil
 		}
 	}
 	// RegExp instance methods (receiver is a RegExp type): re.test(s) -> the
@@ -1126,12 +1139,12 @@ func (tr *transpiler) callSpecial(n, callee tsmorph.Node) (string, bool, error) 
 		}
 		return placeholderExpr("TODO(ts2go): replace"), true, nil
 	case "split":
-		// s.split(sep): JS returns string[]; strings.Split returns []string.
-		// Wrap into []any for dynamic parity.
+		// s.split(sep): JS returns string[] — strings.Split returns []string,
+		// which chains cleanly into .join / .map. (A []any wrap would break
+		// strings.Join / typed map loops further down the chain.)
 		if len(argStrs) == 1 {
 			tr.used["strings"] = true
-			tr.recordGap(SevApprox, "expression", n, "split returns []string wrapped as []any")
-			return "func() []any { out := []any{}; for _, p := range strings.Split(" + objS + ", " + argStrs[0] + ") { out = append(out, p) }; return out }()", true, nil
+			return "strings.Split(" + objS + ", " + argStrs[0] + ")", true, nil
 		}
 		return placeholderExpr("TODO(ts2go): split"), true, nil
 	case "parseInt":

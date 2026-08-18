@@ -489,3 +489,46 @@ function add(a: number, b: number): number {
 	}
 	compileGo(t, "f.go", out)
 }
+
+// TestSplitJoinEmitsStringSlice guards against the []any wrap on `.split()`
+// which made `s.split("\n").join(...)` emit strings.Join([]any) and fail to
+// type-check. split must stay []string so it chains into join/map.
+func TestSplitJoinEmitsStringSlice(t *testing.T) {
+	p, _ := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
+	sf := p.CreateSourceFile("/split.ts", `
+declare const t: any;
+const s = t.dump(x).split("\n").join("\n--");
+`)
+	tp := NewTranspiler(p, sf)
+	out, err := tp.Transpile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "func() []any") {
+		t.Errorf("split should not wrap []any:\n%s", out)
+	}
+	if !strings.Contains(out, "strings.Join(strings.Split(") {
+		t.Errorf("expected strings.Split->strings.Join chain:\n%s", out)
+	}
+}
+
+// TestRecordMemberAccessIsDynamic guards that a checker-typed
+// Record<"k", unknown> receiver routes `.k` through jsrtGet, not a Go struct
+// field read (Record has no fields in Go).
+func TestRecordMemberAccessIsDynamic(t *testing.T) {
+	p, _ := tsmorph.NewProject(tsmorph.ProjectOptions{UseInMemoryFileSystem: true})
+	sf := p.CreateSourceFile("/rec.ts", `
+declare const d: any;
+if ("k" in d) {
+    const v = d.messages;
+}
+`)
+	tp := NewTranspiler(p, sf)
+	out, err := tp.Transpile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, `jsrtGet(d, "messages")`) {
+		t.Errorf("Record member access should be dynamic jsrtGet:\n%s", out)
+	}
+}

@@ -13,7 +13,10 @@ const harnessGo = `package main
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"reflect"
+	"sort"
+	"strings"
 )
 
 type oracleCase struct {
@@ -206,6 +209,135 @@ func assertOK(v any) {
 	if v == nil || v == false {
 		panic(fmt.Sprintf("ok: got %#v", v))
 	}
+}
+
+func assertInclude(hay, needle any) {
+	markAssert()
+	if !strings.Contains(fmt.Sprint(hay), fmt.Sprint(needle)) {
+		panic(fmt.Sprintf("include: %#v does not contain %#v", hay, needle))
+	}
+}
+
+func assertNotInclude(hay, needle any) {
+	markAssert()
+	if strings.Contains(fmt.Sprint(hay), fmt.Sprint(needle)) {
+		panic(fmt.Sprintf("notInclude: %#v unexpectedly contains %#v", hay, needle))
+	}
+}
+
+// yamlDump is a js-yaml-compatible block-style dumper (indent 2, plain
+// scalars, block mappings/sequences) used to shim js-yaml's dump method.
+func yamlDump(v any) string {
+	var b strings.Builder
+	yamlBlock(&b, v, 0)
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
+func yamlScalar(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return "null"
+	case string:
+		return x
+	case bool:
+		if x {
+			return "true"
+		}
+		return "false"
+	case float64:
+		if x == math.Trunc(x) {
+			return fmt.Sprintf("%.0f", x)
+		}
+		return fmt.Sprintf("%v", x)
+	case int:
+		return fmt.Sprintf("%d", x)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// yamlBlock writes v at the given indent. For an array at a mapping-key
+// position, the first item's mapping keys start inline after "- " and the
+// rest align +2 (js-yaml default block style).
+func yamlBlock(b *strings.Builder, v any, indent int) {
+	switch x := v.(type) {
+	case []any:
+		for _, item := range x {
+			b.WriteString(strings.Repeat(" ", indent) + "-")
+			yamlItem(b, item, indent)
+			b.WriteString("\n")
+		}
+	case map[string]any:
+		for _, k := range yamlKeys(x) {
+			b.WriteString(strings.Repeat(" ", indent) + k + ":")
+			yamlVal(b, x[k], indent)
+			b.WriteString("\n")
+		}
+	default:
+		b.WriteString(strings.Repeat(" ", indent) + yamlScalar(v))
+	}
+}
+
+// yamlItem writes a sequence item's value after the "-" token already emitted.
+func yamlItem(b *strings.Builder, v any, indent int) {
+	switch x := v.(type) {
+	case map[string]any:
+		keys := yamlKeys(x)
+		first := true
+		for _, k := range keys {
+			if first {
+				b.WriteString(" " + k + ":")
+				yamlVal(b, x[k], indent)
+				first = false
+			} else {
+				b.WriteString("\n" + strings.Repeat(" ", indent+2) + k + ":")
+				yamlVal(b, x[k], indent+2)
+			}
+		}
+	case []any:
+		b.WriteString("\n")
+		for _, item := range x {
+			b.WriteString(strings.Repeat(" ", indent+2) + "-")
+			yamlItem(b, item, indent+2)
+			b.WriteString("\n")
+		}
+	default:
+		b.WriteString(" " + yamlScalar(v))
+	}
+}
+
+// yamlVal writes the value after "key:" already emitted (handles nesting).
+func yamlVal(b *strings.Builder, v any, indent int) {
+	switch x := v.(type) {
+	case map[string]any:
+		b.WriteString("\n")
+		for _, k := range yamlKeys(x) {
+			b.WriteString(strings.Repeat(" ", indent+2) + k + ":")
+			yamlVal(b, x[k], indent+2)
+			b.WriteString("\n")
+		}
+	case []any:
+		b.WriteString("\n")
+		for _, item := range x {
+			b.WriteString(strings.Repeat(" ", indent+2) + "-")
+			yamlItem(b, item, indent+2)
+			b.WriteString("\n")
+		}
+	default:
+		b.WriteString(" " + yamlScalar(v))
+	}
+}
+
+// yamlKeys returns map keys in insertion-preserving order. Go maps are
+// unordered, so we sort for determinism; js-yaml uses insertion order, so a
+// byte-exact strictEqual on a multi-key map may diverge (handled below).
+func yamlKeys(m map[string]any) []string {
+	ks := make([]string, 0, len(m))
+	for k := range m {
+		ks = append(ks, k)
+	}
+	sort.Strings(ks)
+	return ks
 }
 
 func main() {

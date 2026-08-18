@@ -61,6 +61,13 @@ func jsrtSet(m any, k string, v any) {
 	}
 }
 
+// jsrtPush resolves a map-key array value and appends an item in place
+// (JS obj.arr.push(x) on a dynamic object).
+func jsrtPush(m any, k string, v any) {
+	cur, _ := jsrtGet(m, k).([]any)
+	jsrtSet(m, k, append(cur, v))
+}
+
 // toIndex coerces a JS-number-ish index (Go int/int32/int64/float64) so a
 // transpiled arr[i] works whether i is an int literal or a float64.
 func toIndex(k any) (int, bool) {

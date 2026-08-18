@@ -90,6 +90,10 @@ func Run(module, test, workDir string) (*Result, error) {
 		r.GoBuildEr = o
 		return r, nil
 	}
+	// Shim external-dependency call sites the transpiler emits as dynamic
+	// `jsrtGet(<mod>, "method")(...)`: these can't compile as any-calls, so
+	// route them to concrete jsrt shim functions (js-yaml's dump → yamlDump).
+	shimModuleDeps(filepath.Join(godir, basenameAsGo(module)))
 	if o, err := runCmd("", "/tmp/ts2go", "-o", filepath.Join(godir, "ztest.go"), testTS); err != nil {
 		r.GoBuildEr = o
 		return r, nil
@@ -181,6 +185,23 @@ func fixUp(path, moduleBase string) {
 		}
 	}
 	writeFile(path, s)
+}
+
+// shimModuleDeps rewrites external-dependency call sites in a transpiled
+// module that the transpiler emits as un-compilable dynamic any-calls
+// (`jsrtGet(yaml, "dump")(x)` can't be invoked on an any). Maps each known
+// package's method to a concrete jsrt shim function in the harness.
+func shimModuleDeps(path string) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	s := string(b)
+	// js-yaml: yaml.dump(x) -> yamlDump(x). Also drop the (unbound) `yaml`
+	// external require if present so the package compiles without it.
+	s = strings.ReplaceAll(s, `jsrtGet(yaml, "dump")(`, "yamlDump(")
+	s = regexp.MustCompile(`(?m)^\s*var yaml = .*$`).ReplaceAllString(s, "")
+	_ = os.WriteFile(path, []byte(s), 0o644)
 }
 
 // goExportName mirrors the transpiler's defaultExportName(): the Go symbol
