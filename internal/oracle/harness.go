@@ -225,12 +225,35 @@ func main() {
 // driverJS is the Node-side baseline driver: mocha-style describe/it
 // globals, runs each collected case, prints the JS parity number.
 const driverJS = `global.results = [];
-global.describe = (name, fn) => fn();
-global.it = (name, fn) => global.results.push({ name, fn });
+// Mini mocha: describe/it with per-scope hook inheritance (outer beforeEach
+// applies to nested its), running beforeEach -> body -> afterEach per case.
+const beforeStack = [[]], afterStack = [[]];
+global.beforeEach = (fn) => beforeStack[beforeStack.length-1].push(fn);
+global.afterEach = (fn) => afterStack[afterStack.length-1].push(fn);
+global.describe = (name, fn) => {
+  beforeStack.push(beforeStack[beforeStack.length-1].slice());
+  afterStack.push(afterStack[afterStack.length-1].slice());
+  fn();
+  beforeStack.pop(); afterStack.pop();
+};
+global.it = (name, fn) => global.results.push({
+  name, fn,
+  before: beforeStack[beforeStack.length-1].slice(),
+  after: afterStack[afterStack.length-1].slice()
+});
 require(process.argv[2]);
 let pass = 0, fail = 0;
 for (const r of global.results) {
-  try { r.fn(); pass++; } catch (e) { fail++; console.log("  FAIL " + r.name + ": " + e.message); }
+  try {
+    for (const h of r.before) h();
+    r.fn();
+    pass++;
+  } catch (e) {
+    fail++;
+    console.log("  FAIL " + r.name + ": " + e.message);
+  } finally {
+    for (const h of r.after) { try { h(); } catch (e2) {} }
+  }
 }
 console.log("ORACLE JS: " + pass + " pass, " + fail + " fail");
 `
@@ -250,6 +273,8 @@ module.exports = {
     isTrue: (v) => { if (v !== true) fail("isTrue", v, true); },
     isFalse: (v) => { if (v !== false) fail("isFalse", v, false); },
     ok: (v) => { if (!v) fail("ok", v, true); },
+    include: (hay, needle) => { if (!String(hay).includes(String(needle))) fail("include", hay, needle); },
+    notInclude: (hay, needle) => { if (String(hay).includes(String(needle))) fail("notInclude", hay, needle); },
   },
 };
 `
