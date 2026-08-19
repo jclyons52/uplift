@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout uplift
+        uses: actions/checkout@v4
+        with:
+          path: uplift
+
+      # uplift builds against ts-go-morph via the go.work workspace (replace ../ts-go-morph),
+      # so CI checks both repos out side-by-side, matching local dev layout.
+      - name: Checkout ts-go-morph (workspace dep)
+        uses: actions/checkout@v4
+        with:
+          repository: jclyons52/ts-go-morph
+          path: ts-go-morph
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.5'
+          go-version-file: uplift/go.mod
+
+      - name: Build
+        working-directory: uplift
+        run: go build ./...
+
+      - name: Vet
+        working-directory: uplift
+        run: go vet ./...
+
+      - name: Test
+        working-directory: uplift
+        run: go test ./...
+
+  # Optional separate job — run strictly when workflow files change.
+  # Left as a scaffold; uplift's real "parity gate" runs inside the test suite
+  # (internal/oracle / internal/transpile), all covered by the tests above.
