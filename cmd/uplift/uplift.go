@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/jclyons52/uplift/internal/deps"
 	"github.com/jclyons52/uplift/internal/uplift"
 )
 
@@ -15,6 +16,7 @@ import (
 func runUplift(args []string) {
 	fs := flag.NewFlagSet("uplift", flag.ExitOnError)
 	jsonOut := fs.String("json", "", "write the structured report (schema uplift/v1) to this file")
+	checkUpdates := fs.Bool("check-updates", false, "query the npm registry for the latest version of each leaf dep; flag stale pinned versions before you port (requires network)")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: uplift uplift <dir>\n\ncomputes a codebase's uplift status and the prioritized next actions:\n  types (lift) → structure (simplify) → decouple (hubs/cycles) → tests (parity) → ports (leaves).\nThe default output is human-readable; --json emits a stable machine report\n(schema uplift/v1) for agents. Re-run after each stage to see progress.\n\nflags:\n")
 		fs.PrintDefaults()
@@ -25,7 +27,11 @@ func runUplift(args []string) {
 		fs.Usage()
 		os.Exit(2)
 	}
-	rep, err := uplift.Analyze(pos[0])
+	var opts []deps.AnalyzeOptions
+	if *checkUpdates {
+		opts = append(opts, deps.AnalyzeOptions{CheckUpdates: true})
+	}
+	rep, err := uplift.Analyze(pos[0], opts...)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)

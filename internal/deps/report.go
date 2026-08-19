@@ -85,7 +85,7 @@ func (r *Result) Render() string {
 		len(internal), len(builtin), len(external), extLeaves)
 
 	fmt.Fprintf(&b, "\n=== EXTERNAL DEPENDENCIES ===\n")
-	fmt.Fprintf(&b, "%-28s %-7s %-6s %-7s %-5s %-34s %s\n", "DEP", "KIND", "LEAF", "LOC", "EXP", "NEEDED-BY", "RECOMMEND")
+	fmt.Fprintf(&b, "%-28s %-7s %-6s %-7s %-5s %-10s %-28s %s\n", "DEP", "KIND", "LEAF", "LOC", "EXP", "VERSION", "NEEDED-BY", "RECOMMEND")
 	b.WriteString(strings.Repeat("-", 132) + "\n")
 	for _, n := range external {
 		leaf := r.IsLeaf(n.Name)
@@ -95,9 +95,16 @@ func (r *Result) Render() string {
 		}
 		needed := shortRequirers(n)
 		rec := r.Recommend(n.Name)
+		if r.Stale(n.Name) {
+			rec = fmt.Sprintf("%s ↯ stale: v%s → latest v%s", rec, n.Version, n.Latest)
+		}
+		ver := n.Version
+		if ver == "" {
+			ver = "?"
+		}
 		exp := len(n.Exports)
-		fmt.Fprintf(&b, "%-28s %-7s %-6s %-7d %-5d %-34s %s\n",
-			n.Name, n.Kind, leafMark, n.Loc, exp, needed, rec)
+		fmt.Fprintf(&b, "%-28s %-7s %-6s %-7d %-5d %-10s %-28s %s\n",
+			n.Name, n.Kind, leafMark, n.Loc, exp, ver, needed, rec)
 	}
 
 	// node builtins actually used
@@ -156,6 +163,9 @@ func (r *Result) WriteJSON(w io.Writer) error {
 		Requirers []string `json:"neededBy"`
 		Requires  []string `json:"requires"`
 		Leaf      bool     `json:"leaf"`
+		Version   string   `json:"version,omitempty"`
+		Latest    string   `json:"latest,omitempty"`
+		Stale     bool     `json:"stale"`
 		Recommend string   `json:"recommend"`
 	}
 	var rows []row
@@ -169,6 +179,9 @@ func (r *Result) WriteJSON(w io.Writer) error {
 			Requirers: n.Requirers,
 			Requires:  n.Requires,
 			Leaf:      n.Kind == KindExternal && r.IsLeaf(name) || n.Kind == KindBuiltin,
+			Version:   n.Version,
+			Latest:    n.Latest,
+			Stale:     r.Stale(name),
 			Recommend: r.Recommend(name),
 		})
 	}

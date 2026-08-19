@@ -18,6 +18,7 @@ func runDeps(args []string) {
 	jsonOut := fs.Bool("json", false, "emit the graph as JSON (for downstream tooling) instead of the human report")
 	hintsFlag := fs.String("hints", "", "path to a JSON file of { package: recommendation } overrides merged over the built-in map")
 	registryFlag := fs.String("registry", "", "path to a JSON file extending/fixing the npm→Go counterpart registry")
+	checkUpdates := fs.Bool("check-updates", false, "query the npm registry for the latest version of each external package, flagging stale pinned versions (offline by default)")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: uplift deps <dir>\n\nanalyzes a JS/TS codebase's module graph (internal files, node builtins, external npm packages) and reports:\n  - which files/packages require each dependency (need)\n  - which external packages are leaf nodes (own their whole subtree)\n  - size (LOC), exported-symbol count, and a split-vs-absorb recommendation\n\nflags:\n")
 		fs.PrintDefaults()
@@ -30,6 +31,7 @@ func runDeps(args []string) {
 	}
 
 	var opts deps.AnalyzeOptions
+	opts.CheckUpdates = *checkUpdates
 	if *hintsFlag != "" {
 		h, err := readHints(*hintsFlag)
 		if err != nil {

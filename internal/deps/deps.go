@@ -16,11 +16,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	tsmorph "github.com/jclyons52/ts-go-morph"
 	"github.com/jclyons52/ts-go-morph/third_party/typescript-go/ts/ast"
@@ -61,6 +64,8 @@ type Node struct {
 	Requires  []string // modules this one requires
 	Loc       int      // line count (internal: file; external: package .js source excluding node_modules)
 	Exports   []string // exported symbol names discovered (external packages, best-effort)
+	Version   string   // installed (pinned) version from node_modules/<pkg>/package.json (external only)
+	Latest    string   // latest published version from the npm registry (only when freshness is checked)
 }
 
 // Result is the analyzed graph keyed by canonical node name.
@@ -81,6 +86,11 @@ type AnalyzeOptions struct {
 	// CounterpartOverlay is optional JSON extending/fixing the npm→Go
 	// counterpart registry for this run.
 	CounterpartOverlay []byte
+	// CheckUpdates queries the npm registry for the latest published version
+	// of every external package and records it alongside the installed one,
+	// so a decision to port (or scaffold) can see whether the pinned version
+	// is stale first. Requires network; leave false for offline analysis.
+	CheckUpdates bool
 }
 
 // Recommend returns a one-line decision for an external/builtin node.
@@ -319,6 +329,9 @@ func (a *Analyzer) analyzeExternal() {
 		}
 		node.Loc = sourceLoc(dir)
 		node.Exports = discoveredExports(dir, pj)
+		if pj.Version != "" {
+			node.Version = pj.Version
+		}
 		var deps []string
 		for d := range pj.Dependencies {
 			deps = append(deps, d)
@@ -467,12 +480,16 @@ func (a *Analyzer) relName(abs string) string {
 func Analyze(root string, opts ...AnalyzeOptions) (*Result, error) {
 	var hints map[string]string
 	var overlay []byte
+	var checkUpdates bool
 	for _, o := range opts {
 		if len(o.Hints) > 0 {
 			hints = o.Hints
 		}
 		if len(o.CounterpartOverlay) > 0 {
 			overlay = o.CounterpartOverlay
+		}
+		if o.CheckUpdates {
+			checkUpdates = true
 		}
 	}
 	merged := make(map[string]string, len(stdlibHints)+len(hints))
@@ -522,7 +539,61 @@ func Analyze(root string, opts ...AnalyzeOptions) (*Result, error) {
 	a.analyzeEntryFiles()
 	// expand every external package's subtree
 	a.analyzeExternal()
+	if checkUpdates {
+		a.freshness()
+	}
 	return a.Result, nil
+}
+
+// freshness queries the npm registry for the latest published version of
+// every external package, storing it on the node. Failures (offline, missing
+// package) are skipped silently — the installed version is still reported.
+func (a *Analyzer) freshness() {
+	cli := &http.Client{Timeout: 12 * time.Second}
+	for _, name := range a.Result.Order {
+		n := a.Result.Nodes[name]
+		if n == nil || n.Kind != KindExternal {
+			continue
+		}
+		latest, err := fetchLatest(cli, name)
+		if err != nil {
+			continue
+		}
+		if latest != "" {
+			n.Latest = latest
+		}
+	}
+}
+
+// fetchLatest returns a package's latest published version from the npm
+// registry, or an error on any network/parse failure.
+func fetchLatest(cli *http.Client, name string) (string, error) {
+	u := "https://registry.npmjs.org/" + url.PathEscape(name)
+	resp, err := cli.Get(u)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("npm registry %s: HTTP %d", name, resp.StatusCode)
+	}
+	var meta struct {
+		DistTags map[string]string `json:"dist-tags"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
+		return "", err
+	}
+	return meta.DistTags["latest"], nil
+}
+
+// Stale reports whether an external node's installed version is behind the
+// latest published one (only meaningful after a freshness check).
+func (r *Result) Stale(name string) bool {
+	n := r.Nodes[name]
+	if n == nil || n.Version == "" || n.Latest == "" {
+		return false
+	}
+	return n.Version != n.Latest
 }
 
 // Non-lowering helpers ------------------------------------------------------

@@ -21,7 +21,7 @@ module.exports = function(){ return { x, chalk, fs, h }; };`,
 		"util.js":   `const helper = require("./helper"); module.exports = { helper };`,
 		"helper.js": `module.exports = 42;`,
 		// chalk depends on ansi-styles -> so chalk is NOT a leaf
-		"node_modules/chalk/package.json":       `{"name":"chalk","main":"index.js","dependencies":{"ansi-styles":"^4.0.0"}}`,
+		"node_modules/chalk/package.json":       `{"name":"chalk","version":"4.1.2","main":"index.js","dependencies":{"ansi-styles":"^4.0.0"}}`,
 		"node_modules/chalk/index.js":           `module.exports = { red: s => s };`,
 		"node_modules/ansi-styles/index.js":     `module.exports = { red: [0,31] };`,
 		"node_modules/ansi-styles/package.json": `{"name":"ansi-styles"}`,
@@ -129,5 +129,49 @@ func TestEntryExports(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestVersionCaptured verifies the installed version is read from each
+// external package's node_modules/.../package.json and surfaces in the JSON
+// output, and that Stale() only fires when a later version is known.
+func TestVersionCaptured(t *testing.T) {
+	dir := writeFixture(t)
+	// add a Latest to simulate a freshness check (offline unit test)
+	res, err := Analyze(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := res.Nodes["chalk"]
+	if c == nil {
+		t.Fatal("no chalk node")
+	}
+	if c.Version != "4.1.2" {
+		t.Errorf("chalk.Version = %q, want 4.1.2", c.Version)
+	}
+	if res.Stale("chalk") {
+		t.Errorf("Stale(chalk) should be false with no Latest")
+	}
+
+	// a fake freshness result drives stale reporting
+	c.Latest = "5.0.0"
+	if !res.Stale("chalk") {
+		t.Errorf("Stale(chalk) should be true when Latest(5.0.0) != Version(4.1.2)")
+	}
+	c.Latest = "4.1.2"
+	if res.Stale("chalk") {
+		t.Errorf("Stale(chalk) should be false when Latest == Version")
+	}
+
+	// JSON carries version/latest/stale
+	var b strings.Builder
+	if err := res.WriteJSON(&b); err != nil {
+		t.Fatal(err)
+	}
+	out := b.String()
+	for _, want := range []string{`"name": "chalk"`, `"version": "4.1.2"`, `"stale": `} {
+		if !strings.Contains(out, want) {
+			t.Errorf("JSON missing %q", want)
+		}
 	}
 }

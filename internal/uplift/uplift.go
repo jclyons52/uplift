@@ -51,17 +51,21 @@ type PortItem struct {
 	Name     string `json:"name"`
 	GoModule string `json:"goModule"`
 	Loc      int    `json:"loc"`
+	Version  string `json:"version,omitempty"` // installed version (when known)
+	Latest   string `json:"latest,omitempty"`  // latest published (only after a freshness check)
+	Stale    bool   `json:"stale"`
 }
 
-// Analyze builds the uplift report for a source root.
-func Analyze(root string) (*Report, error) {
+// Analyze builds the uplift report for a source root. Optional deps options
+// (e.g. CheckUpdates) are passed through to the dependency analysis.
+func Analyze(root string, opts ...deps.AnalyzeOptions) (*Report, error) {
 	m, err := measure.Analyze(root)
 	if err != nil {
 		return nil, err
 	}
 	rep := &Report{SchemaVersion: SchemaVersion, Root: m.Root, Metrics: *m}
 
-	res, err := deps.Analyze(root)
+	res, err := deps.Analyze(root, opts...)
 	if err == nil {
 		rep.Coupling = deps.CouplingOf(res)
 		// port backlog: leaf libs the analysis recommends separating
@@ -71,7 +75,14 @@ func Analyze(root string) (*Report, error) {
 				continue
 			}
 			if wantsOwnRepo(res.Recommend(name)) {
-				rep.PortBacklog = append(rep.PortBacklog, PortItem{Name: name, Loc: n.Loc, GoModule: "github.com/jclyons52/" + sanitize(name) + "-go"})
+				rep.PortBacklog = append(rep.PortBacklog, PortItem{
+					Name:     name,
+					GoModule: "github.com/jclyons52/" + sanitize(name) + "-go",
+					Loc:      n.Loc,
+					Version:  n.Version,
+					Latest:   n.Latest,
+					Stale:    res.Stale(name),
+				})
 			}
 		}
 		sort.Slice(rep.PortBacklog, func(i, j int) bool { return rep.PortBacklog[i].Loc > rep.PortBacklog[j].Loc })
@@ -192,7 +203,13 @@ func (r *Report) computeActions() {
 		if p.Loc < 50 {
 			continue
 		}
-		add("port", "port", p.Name, fmt.Sprintf("%d LOC leaf; no Go counterpart", p.Loc))
+		reason := fmt.Sprintf("%d LOC leaf; no Go counterpart", p.Loc)
+		if p.Stale {
+			reason = fmt.Sprintf("%s; ↯ stale v%s → latest v%s — update before porting", reason, p.Version, p.Latest)
+		} else if p.Version != "" {
+			reason = fmt.Sprintf("%s; installed v%s", reason, p.Version)
+		}
+		add("port", "port", p.Name, reason)
 	}
 	if len(r.PortBacklog) == 0 && len(r.Actions) > 0 {
 		// nothing to port but other work remains
