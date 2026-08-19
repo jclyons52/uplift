@@ -17,7 +17,7 @@ gated by tests and by type information the compiler can vouch for.
 
 `uplift` turns "clean up this project" from a scary open-ended effort into a
 **staged, tool-assisted pipeline**, where every stage is either provably
-safe (types) or gated by a verification loop (`ts2go -verify`: transpile →
+safe (types) or gated by a verification loop (`uplift -verify`: transpile →
 build the Go → feed every failure back). Each stage is a committable
 checkpoint, so the project gets measurably cleaner and never red.
 
@@ -26,9 +26,9 @@ have*, plus a target workflow. The tools:
 
 | Tool | Role in uplift |
 |---|---|
-| **`ts2go`** | type engine: transpile TS→Go; `lift` (JS→TS via the checker); `-type-audit` (find where types are being thrown away); `-verify` (the feedback/safety gate) |
+| **`uplift`** | type engine: transpile TS→Go; `lift` (JS→TS via the checker); `-type-audit` (find where types are being thrown away); `-verify` (the feedback/safety gate) |
 | **`go-typewryter`** | **inversion of control engine**: loads a dependencies type, infers providers, generates a tree-shaken DI container — the mechanism for swapping components in tests |
-| **`ts-go-morph`** | shared foundation: Go port of ts-morph (bind `ts2go` + `go-typewryter` to a common AST/type-checking layer) |
+| **`ts-go-morph`** | shared foundation: Go port of ts-morph (bind `uplift` + `go-typewryter` to a common AST/type-checking layer) |
 | **`go-gqlcodegen`** | proof of the port methodology (JS→Go codegen at byte parity) |
 
 ---
@@ -39,14 +39,14 @@ Applied to a target project, in this order:
 
 1. **Types, first and safe.** Types **cannot cause runtime errors**, so
    filling them in is the single safest cleaning operation that exists.
-   - `ts2go lift` annotates JS/JSDoc: params, returns, typedefs → typed TS
+   - `uplift lift` annotates JS/JSDoc: params, returns, typedefs → typed TS
      (`tsc --strict`-clean, commitable now).
-   - `ts2go -type-audit` lists every site still degraded to `any` where the
+   - `uplift -type-audit` lists every site still degraded to `any` where the
      checker resolves a concrete type — the exact "annotate here" list.
    - Refactoring *within* the type layer (renames, type narrowing) is
      mechanical and low-risk; it also makes the later stages easier.
 
-2. **Run code in isolation.** Transpile a module to Go (`ts2go`) and execute
+2. **Run code in isolation.** Transpile a module to Go (`uplift`) and execute
    it independently (jsrt shim) so its real behaviour is observable without
    its neighbours. The **parity smoke test** — run the transpiled piece
    against its original and diff — turns "does the port behave right?" into
@@ -77,11 +77,11 @@ Applied to a target project, in this order:
 
 ## 3. Roadmap phases
 
-The phases below fold in the current `ts2go` work (the "first things" being
+The phases below fold in the current `uplift` work (the "first things" being
 worked on) and build up to a full uplift demonstration.
 
 ### Phase A — finish the type engine + safety gate (in progress)
-Completing `ts2go` so the type stage and the verification loop are sound on
+Completing `uplift` so the type stage and the verification loop are sound on
 real codebases. *(This is the current backlog.)*
 - **CommonJS** (`require` / `module.exports`) — the blocker for transpiling
   a whole JS codebase (ESLint class) to Go. (pushed back)
@@ -126,11 +126,11 @@ filled, any remaining, coupling graph, testability, parity). This is the
 "cleaning up projects" product surface. Priority order within a project
 (stage 1→6 above) is the default plan `uplift` proposes.
 
-The **measurement layer exists** (`ts2go measure`, schema `measure/v1`): a
+The **measurement layer exists** (`uplift measure`, schema `measure/v1`): a
 comparable per-codebase report — type coverage ratio, cyclomatic complexity,
-coupling (modules/edges/density/fan-out/hubs/cycles), and tests/parity. `ts2go
+coupling (modules/edges/density/fan-out/hubs/cycles), and tests/parity. `uplift
 measure --compare before.json,after.json` diffs two snapshots into an
-annotated delta. And the **`uplift` status CLI exists** (`ts2go uplift <dir>`,
+annotated delta. And the **`uplift` status CLI exists** (`uplift uplift <dir>`,
 schema `uplift/v1`): it measures a codebase and emits a stage-ordered,
 prioritized next-action plan (types → structure → decouple → tests → ports)
 that both a human (`--json`-less) and an agent (`--json`) can consume. What
@@ -172,7 +172,7 @@ per module) from one command and threading the harness through it.
 
 ## 6. Future exploration: a recursive LLM harness
 
-`ts2go`/`uplift` already lean on the boundary between **mechanical** work
+`uplift`/`uplift` already lean on the boundary between **mechanical** work
 (the transpiler, the oracle, `-verify`) and **judgement** work (resolving the
 gaps/issues the mechanical layer reports). Today the gap list is an LLM
 work-item manifest dropped wholesale into the prompt. As a codebase scales,

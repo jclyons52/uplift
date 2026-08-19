@@ -1,4 +1,4 @@
-# ESLint port backlog (from ts2go scaffold + registry)
+# ESLint port backlog (from uplift scaffold + registry)
 
 Leaf packages NOT covered by an existing Go module — genuine ports. Reused deps
 (chalk, ajv, text-table, js-yaml...) are excluded by the npm→Go counterpart registry.

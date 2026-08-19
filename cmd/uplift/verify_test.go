@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jclyons52/ts2go/internal/transpile"
+	"github.com/jclyons52/uplift/internal/transpile"
 )
 
 func TestValidateInput(t *testing.T) {
@@ -56,7 +56,7 @@ internal/x.go:3: cannot use int as string
 func TestRewritePackageMain(t *testing.T) {
 	in := "// header\n\npackage main\n\nvar x = 1\n"
 	out := rewritePackageMain(in)
-	if !strings.Contains(out, "package ts2go_verify") || strings.Contains(out, "package main") {
+	if !strings.Contains(out, "package uplift_verify") || strings.Contains(out, "package main") {
 		t.Errorf("package main not rewritten:\n%s", out)
 	}
 	if got := rewritePackageMain("package src\n\nvar x = 1\n"); !strings.Contains(got, "package src") {
@@ -79,10 +79,10 @@ func TestAttachCompileErrors(t *testing.T) {
 	if len(files[0].Report.CompileErrors) != 1 {
 		t.Fatalf("a.go should carry its error, got %v", files[0].Report.CompileErrors)
 	}
-	if !strings.Contains(files[0].Code, "ts2go compile finding") {
+	if !strings.Contains(files[0].Code, "uplift compile finding") {
 		t.Errorf("finding should be appended to a.go code:\n%s", files[0].Code)
 	}
-	if !strings.Contains(files[1].Code, "ts2go compile finding") {
+	if !strings.Contains(files[1].Code, "uplift compile finding") {
 		t.Errorf("finding should be appended to jsrt.go code (no report to attach to):\n%s", files[1].Code)
 	}
 	if len(unmatched) != 1 || unmatched[0].File != "nope.go" {
@@ -111,7 +111,7 @@ func TestVerifyBuildFindsErrors(t *testing.T) {
 
 	clean := &transpile.FileResult{
 		Name:   "ok.go",
-		Code:   "package ts2go_verify\n\nvar x = 1\n",
+		Code:   "package uplift_verify\n\nvar x = 1\n",
 		Report: &transpile.Report{},
 	}
 	if errs := verifyBuild([]*transpile.FileResult{clean}); len(errs) != 0 {

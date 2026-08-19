@@ -7,10 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jclyons52/ts2go/internal/measure"
+	"github.com/jclyons52/uplift/internal/measure"
 )
 
-// runMeasure implements `ts2go measure <dir>`: compute a comparable quality
+// runMeasure implements `uplift measure <dir>`: compute a comparable quality
 // metric set (type coverage, complexity, coupling, tests) so uplift progress
 // is measurable between stages.
 func runMeasure(args []string) {
@@ -18,7 +18,7 @@ func runMeasure(args []string) {
 	jsonOut := fs.String("json", "", "write the structured report to this file (overrides the human report)")
 	compareFlag := fs.String("compare", "", "two JSON snapshot files (before,after) to diff instead of measuring a dir")
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: ts2go measure <dir> [--json out.json]\n       ts2go measure --compare before.json after.json [--json delta.json]\n\ncomputes a codebase quality metric set (schema measure/v1):\n  - type coverage (annotated sites ratio)\n  - cyclomatic complexity (total/avg/max + top files)\n  - coupling (modules, edges, density, fan-out, hubs, cycles)\n  - tests (test files, parity suites)\n\nRun before and after each uplift stage to measure the delta.\n\nflags:\n")
+		fmt.Fprintf(os.Stderr, "usage: uplift measure <dir> [--json out.json]\n       uplift measure --compare before.json after.json [--json delta.json]\n\ncomputes a codebase quality metric set (schema measure/v1):\n  - type coverage (annotated sites ratio)\n  - cyclomatic complexity (total/avg/max + top files)\n  - coupling (modules, edges, density, fan-out, hubs, cycles)\n  - tests (test files, parity suites)\n\nRun before and after each uplift stage to measure the delta.\n\nflags:\n")
 		fs.PrintDefaults()
 	}
 	fs.Parse(reorderMeasureArgs(args))

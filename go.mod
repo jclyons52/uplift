@@ -1,4 +1,4 @@
-module github.com/jclyons52/ts2go
+module github.com/jclyons52/uplift
 
 go 1.26.5
 

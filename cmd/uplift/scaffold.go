@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jclyons52/ts2go/internal/deps"
-	"github.com/jclyons52/ts2go/internal/scaffold"
+	"github.com/jclyons52/uplift/internal/deps"
+	"github.com/jclyons52/uplift/internal/scaffold"
 )
 
-// runScaffold implements `ts2go scaffold <dir>`: for every external package
+// runScaffold implements `uplift scaffold <dir>`: for every external package
 // the deps analysis recommends separating ("port as its own repo"), create a
 // standalone library-repo skeleton (go.mod, package stub, parity test,
 // README) under --out.
@@ -24,7 +24,7 @@ func runScaffold(args []string) {
 	queueFlag := fs.String("queue", "", "write the machine-readable port work queue (JSON, schema port-queue/v1) to this file")
 	onlyFlag := fs.String("only", "", "comma-separated package names to scaffold (default: all that are 'own repo')")
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: ts2go scaffold <dir> --out <reposdir>\n\ncreates a standalone library repo for each external dep the analysis recommends\nseparating (a leaf library 'port as own repo'). Lay down: go.mod, a compiling\npackage stub, a parity-test stub, README, and optionally the original source.\n\nflags:\n")
+		fmt.Fprintf(os.Stderr, "usage: uplift scaffold <dir> --out <reposdir>\n\ncreates a standalone library repo for each external dep the analysis recommends\nseparating (a leaf library 'port as own repo'). Lay down: go.mod, a compiling\npackage stub, a parity-test stub, README, and optionally the original source.\n\nflags:\n")
 		fs.PrintDefaults()
 	}
 	fs.Parse(reorderScaffoldArgs(args))

@@ -72,11 +72,11 @@ func Run(module, test, workDir string) (*Result, error) {
 	// 2. Lift module + test to TS (module keeps its basename so the default
 	// export derives the right Go name: interpolate.js -> Interpolate).
 	modTS := filepath.Join(workDir, basenameAsTS(module))
-	if o, err := runCmd("", "/tmp/ts2go", "lift", "-o", modTS, module); err != nil {
+	if o, err := runCmd("", "/tmp/uplift", "lift", "-o", modTS, module); err != nil {
 		return r, fmt.Errorf("lift module: %v\n%s", err, o)
 	}
 	testTS := filepath.Join(workDir, "ztest.ts")
-	if o, err := runCmd("", "/tmp/ts2go", "lift", "-o", testTS, test); err != nil {
+	if o, err := runCmd("", "/tmp/uplift", "lift", "-o", testTS, test); err != nil {
 		return r, fmt.Errorf("lift test: %v\n%s", err, o)
 	}
 
@@ -86,7 +86,7 @@ func Run(module, test, workDir string) (*Result, error) {
 	if err := os.MkdirAll(godir, 0o755); err != nil {
 		return r, err
 	}
-	if o, err := runCmd("", "/tmp/ts2go", "-o", filepath.Join(godir, basenameAsGo(module)), modTS); err != nil {
+	if o, err := runCmd("", "/tmp/uplift", "-o", filepath.Join(godir, basenameAsGo(module)), modTS); err != nil {
 		r.GoBuildEr = o
 		return r, nil
 	}
@@ -94,7 +94,7 @@ func Run(module, test, workDir string) (*Result, error) {
 	// `jsrtGet(<mod>, "method")(...)`: these can't compile as any-calls, so
 	// route them to concrete jsrt shim functions (js-yaml's dump → yamlDump).
 	shimModuleDeps(filepath.Join(godir, basenameAsGo(module)))
-	if o, err := runCmd("", "/tmp/ts2go", "-o", filepath.Join(godir, "ztest.go"), testTS); err != nil {
+	if o, err := runCmd("", "/tmp/uplift", "-o", filepath.Join(godir, "ztest.go"), testTS); err != nil {
 		r.GoBuildEr = o
 		return r, nil
 	}

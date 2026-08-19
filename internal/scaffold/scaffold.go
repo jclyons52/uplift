@@ -2,7 +2,7 @@
 // repos. For every external leaf the analysis marks "port as its own repo",
 // it lays down a starter repo: go.mod, a compiling package stub, a parity
 // test stub, and a README carrying the source/LOC/export metadata — so the
-// next step (transpile the original JS via ts2go) starts from a real repo
+// next step (transpile the original JS via uplift) starts from a real repo
 // rather than a blank directory.
 package scaffold
 
@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jclyons52/ts2go/internal/deps"
+	"github.com/jclyons52/uplift/internal/deps"
 )
 
 // Options control scaffolding.
@@ -161,6 +161,6 @@ func (r Repo) Describe() string {
 	}
 	fmt.Fprintf(&b, "| Needed by | %s |\n", strings.Join(r.NeededBy, ", "))
 	fmt.Fprintf(&b, "| Module | `%s` |\n\n", r.Module)
-	b.WriteString("Workflow: transpile `original/` with `ts2go`, then hand-clean. Keep the parity test green.\n")
+	b.WriteString("Workflow: transpile `original/` with `uplift`, then hand-clean. Keep the parity test green.\n")
 	return b.String()
 }

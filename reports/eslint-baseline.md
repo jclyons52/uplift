@@ -1,4 +1,4 @@
-# ESLint baseline metrics (from ts2go measure, schema measure/v1)
+# ESLint baseline metrics (from uplift measure, schema measure/v1)
 
 ```
 Measure report (schema measure/v1)

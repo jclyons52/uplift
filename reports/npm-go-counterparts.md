@@ -1,7 +1,7 @@
 # npm→Go counterpart registry (seed)
 
 Which existing Go modules / stdlib cover an npm package vs which must be ported.
-Query live with: `ts2go registry`, extend with `--overlay file.json`.
+Query live with: `uplift registry`, extend with `--overlay file.json`.
 
 ```
 NPM PACKAGE                          VERDICT   GO COUNTERPART                 NOTE

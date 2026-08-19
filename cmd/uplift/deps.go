@@ -7,10 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jclyons52/ts2go/internal/deps"
+	"github.com/jclyons52/uplift/internal/deps"
 )
 
-// runDeps implements `ts2go deps <dir>`: analyze a codebase's module graph and
+// runDeps implements `uplift deps <dir>`: analyze a codebase's module graph and
 // print the dependency/size/leaf report that supports the "port each
 // dependency as its own library in a separate repo" strategy.
 func runDeps(args []string) {
@@ -19,7 +19,7 @@ func runDeps(args []string) {
 	hintsFlag := fs.String("hints", "", "path to a JSON file of { package: recommendation } overrides merged over the built-in map")
 	registryFlag := fs.String("registry", "", "path to a JSON file extending/fixing the npm→Go counterpart registry")
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: ts2go deps <dir>\n\nanalyzes a JS/TS codebase's module graph (internal files, node builtins, external npm packages) and reports:\n  - which files/packages require each dependency (need)\n  - which external packages are leaf nodes (own their whole subtree)\n  - size (LOC), exported-symbol count, and a split-vs-absorb recommendation\n\nflags:\n")
+		fmt.Fprintf(os.Stderr, "usage: uplift deps <dir>\n\nanalyzes a JS/TS codebase's module graph (internal files, node builtins, external npm packages) and reports:\n  - which files/packages require each dependency (need)\n  - which external packages are leaf nodes (own their whole subtree)\n  - size (LOC), exported-symbol count, and a split-vs-absorb recommendation\n\nflags:\n")
 		fs.PrintDefaults()
 	}
 	fs.Parse(reorderDepsArgs(args))
@@ -62,7 +62,7 @@ func runDeps(args []string) {
 	fmt.Print(res.Render())
 }
 
-// reorderDepsArgs lets flags appear after the positional dir (`ts2go deps
+// reorderDepsArgs lets flags appear after the positional dir (`uplift deps
 // <dir> --json`), which the flag package otherwise stops parsing at. Only
 // --hints consumes a value token, so this is unambiguous.
 func reorderDepsArgs(args []string) []string {

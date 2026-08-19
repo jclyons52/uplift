@@ -577,7 +577,7 @@ func (tr *transpiler) emitTryStatement(n tsmorph.Node) error {
 	// returns, Go needs an endpoint: panic marks it unreachable-ish and
 	// compiles. The LLM restructures per the recorded TODO.
 	if len(tr.retStack) > 0 && tr.retStack[len(tr.retStack)-1] != "" {
-		tr.out.line(`panic("ts2go: TODO: restructure try/catch returns")`)
+		tr.out.line(`panic("uplift: TODO: restructure try/catch returns")`)
 	}
 	return nil
 }
@@ -775,7 +775,7 @@ func (tr *transpiler) isExternalIdent(n tsmorph.Node) bool {
 
 // isDynamicReceiver reports whether a node carries the JS dynamic value
 // model: an explicit any, a JSDoc `Object` param, or an inferred map/slice of
-// any (the representation ts2go gives untyped JS values). Such values must be
+// any (the representation uplift gives untyped JS values). Such values must be
 // traversed through the jsrt runtime, not Go fields/operators.
 func (tr *transpiler) isDynamicReceiver(n tsmorph.Node) bool {
 	if n.IsZero() {
@@ -1117,7 +1117,7 @@ func (tr *transpiler) callSpecial(n, callee tsmorph.Node) (string, bool, error) 
 		case 2:
 			return objS + "[" + argStrs[0] + ":" + argStrs[1] + "]", true, nil
 		}
-		return placeholderExpr("TODO(ts2go): " + propS), true, nil
+		return placeholderExpr("TODO(uplift): " + propS), true, nil
 	case "toUpperCase":
 		tr.used["strings"] = true
 		return "strings.ToUpper(" + objS + ")", true, nil
@@ -1158,7 +1158,7 @@ func (tr *transpiler) callSpecial(n, callee tsmorph.Node) (string, bool, error) 
 			tr.used["strings"] = true
 			return "strings.ReplaceAll(" + objS + ", " + argStrs[0] + ", " + argStrs[1] + ")", true, nil
 		}
-		return placeholderExpr("TODO(ts2go): replace"), true, nil
+		return placeholderExpr("TODO(uplift): replace"), true, nil
 	case "split":
 		// s.split(sep): JS returns string[] — strings.Split returns []string,
 		// which chains cleanly into .join / .map. (A []any wrap would break
@@ -1167,13 +1167,13 @@ func (tr *transpiler) callSpecial(n, callee tsmorph.Node) (string, bool, error) 
 			tr.used["strings"] = true
 			return "strings.Split(" + objS + ", " + argStrs[0] + ")", true, nil
 		}
-		return placeholderExpr("TODO(ts2go): split"), true, nil
+		return placeholderExpr("TODO(uplift): split"), true, nil
 	case "parseInt":
 		tr.used["strconv"] = true
 		if len(argStrs) == 1 {
 			return "func() int64 { v, _ := strconv.ParseInt(" + argStrs[0] + ", 10, 64); return v }()", true, nil
 		}
-		return placeholderExpr("TODO(ts2go): parseInt with radix"), true, nil
+		return placeholderExpr("TODO(uplift): parseInt with radix"), true, nil
 	case "parseFloat":
 		tr.used["strconv"] = true
 		return "func() float64 { v, _ := strconv.ParseFloat(" + strings.Join(argStrs, ", ") + ", 64); return v }()", true, nil

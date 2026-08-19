@@ -11,18 +11,18 @@ import (
 
 	tsmorph "github.com/jclyons52/ts-go-morph"
 	"github.com/jclyons52/ts-go-morph/third_party/typescript-go/ts/core"
-	"github.com/jclyons52/ts2go/internal/lift"
+	"github.com/jclyons52/uplift/internal/lift"
 )
 
-// runLift implements `ts2go lift`: it reads JavaScript (optionally
+// runLift implements `uplift lift`: it reads JavaScript (optionally
 // JSDoc-typed) and writes annotated TypeScript, adding `: type` to every
 // parameter and return the checker resolves — a safe, reviewable commit
 // that tightens poorly-typed codebases and feeds the JS→TS→Go pipeline.
 func runLift(args []string) {
-	fs := flag.NewFlagSet("ts2go lift", flag.ExitOnError)
+	fs := flag.NewFlagSet("uplift lift", flag.ExitOnError)
 	outFlag := fs.String("o", "", "output .ts file (single input) or directory (multiple inputs); default: same path with .ts")
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: ts2go lift [flags] <file.js|dir>...\n\nlifts JavaScript (JSDoc optional) to annotated TypeScript.\n\nflags:\n")
+		fmt.Fprintf(os.Stderr, "usage: uplift lift [flags] <file.js|dir>...\n\nlifts JavaScript (JSDoc optional) to annotated TypeScript.\n\nflags:\n")
 		fs.PrintDefaults()
 	}
 	fs.Parse(args)

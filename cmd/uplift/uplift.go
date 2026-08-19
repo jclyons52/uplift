@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jclyons52/ts2go/internal/uplift"
+	"github.com/jclyons52/uplift/internal/uplift"
 )
 
-// runUplift implements `ts2go uplift <dir>`: compute a codebase's quality
+// runUplift implements `uplift uplift <dir>`: compute a codebase's quality
 // status and the prioritized next uplift actions (types → structure →
 // decouple → tests → ports). Emits a stable JSON report (schema uplift/v1)
 // for agents, and a readable status for humans — the primary interface.
@@ -16,7 +16,7 @@ func runUplift(args []string) {
 	fs := flag.NewFlagSet("uplift", flag.ExitOnError)
 	jsonOut := fs.String("json", "", "write the structured report (schema uplift/v1) to this file")
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: ts2go uplift <dir>\n\ncomputes a codebase's uplift status and the prioritized next actions:\n  types (lift) → structure (simplify) → decouple (hubs/cycles) → tests (parity) → ports (leaves).\nThe default output is human-readable; --json emits a stable machine report\n(schema uplift/v1) for agents. Re-run after each stage to see progress.\n\nflags:\n")
+		fmt.Fprintf(os.Stderr, "usage: uplift uplift <dir>\n\ncomputes a codebase's uplift status and the prioritized next actions:\n  types (lift) → structure (simplify) → decouple (hubs/cycles) → tests (parity) → ports (leaves).\nThe default output is human-readable; --json emits a stable machine report\n(schema uplift/v1) for agents. Re-run after each stage to see progress.\n\nflags:\n")
 		fs.PrintDefaults()
 	}
 	fs.Parse(reorderUpliftArgs(args))

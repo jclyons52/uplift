@@ -1,8 +1,8 @@
 // Package lift converts JavaScript (optionally JSDoc-typed) into annotated
 // TypeScript by asking the TypeScript checker for the resolved type of every
-// parameter and return value. It is the JS→TS bridge for the ts2go
+// parameter and return value. It is the JS→TS bridge for the uplift
 // pipeline: once a codebase (e.g. ESLint-style, JSDoc-only) is lifted to
-// typed TS, ts2go can transpile it without the any/dynamic gap cascade.
+// typed TS, uplift can transpile it without the any/dynamic gap cascade.
 //
 // The output is the original source with type annotations inserted — nothing
 // else changes, so the lift is a safe, reviewable commit. Types the checker

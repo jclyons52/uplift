@@ -91,7 +91,7 @@ func TestImportTypeDegrades(t *testing.T) {
 	if strings.Contains(preShim(out), "panic") {
 		t.Fatalf("import type must not panic:\n%s", out)
 	}
-	if !strings.Contains(out, "TODO(ts2go)") && !strings.Contains(out, "import type") {
+	if !strings.Contains(out, "TODO(uplift)") && !strings.Contains(out, "import type") {
 		t.Errorf("import type should record a gap:\n%s", out)
 	}
 	compileGo(t, "imp.go", out)

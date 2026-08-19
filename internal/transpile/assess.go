@@ -183,7 +183,7 @@ func (r *Report) Manifest() string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("// ts2go post-work manifest (LLM TODO list):\n")
+	b.WriteString("// uplift post-work manifest (LLM TODO list):\n")
 	for _, it := range grouped {
 		loc := fmt.Sprintf("%s:%d", baseName(r.Input), it.FirstLine)
 		if it.FirstLine != it.LastLine {
@@ -209,7 +209,7 @@ func (r *Report) String() string {
 		return r.stringPackage()
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "ts2go assessment: %s\n", r.Input)
+	fmt.Fprintf(&b, "uplift assessment: %s\n", r.Input)
 	fmt.Fprintf(&b, "  TS source:      %d lines, %d top-level declarations\n", r.TSLines, r.DeclCount)
 	if !r.EmittedOK {
 		fmt.Fprintf(&b, "  EMISSION FAILED: %s\n", strings.Join(r.FatalErrors, "; "))
@@ -238,7 +238,7 @@ func (r *Report) String() string {
 // sections.
 func (r *Report) stringPackage() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "ts2go package assessment: %s\n", r.Input)
+	fmt.Fprintf(&b, "uplift package assessment: %s\n", r.Input)
 	fmt.Fprintf(&b, "  TS source:      %d lines, %d top-level declarations across %d files\n",
 		r.TSLines, r.DeclCount, len(r.Files))
 	if !r.EmittedOK {
@@ -272,7 +272,7 @@ func (r *Report) stringPackage() string {
 }
 
 // AuditString renders the type-tightening worklist: the sites where the
-// checker resolved a concrete type but ts2go emitted any/dynamic, grouped by
+// checker resolved a concrete type but uplift emitted any/dynamic, grouped by
 // category+checker-type. This is what `-type-audit` prints — annotate these
 // source sites to tighten the output.
 func (r *Report) AuditString() string {
@@ -282,7 +282,7 @@ func (r *Report) AuditString() string {
 	}
 	count += len(r.Audit)
 	var b strings.Builder
-	fmt.Fprintf(&b, "ts2go type audit: %d tightenable sites (checker knows more than emitted)\n", count)
+	fmt.Fprintf(&b, "uplift type audit: %d tightenable sites (checker knows more than emitted)\n", count)
 	if count == 0 {
 		b.WriteString("  none — the checker already resolves to any at every degraded site\n")
 		return b.String()

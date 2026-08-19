@@ -28,7 +28,7 @@ func transpilePackage(t *testing.T, files map[string]string) *PackageResult {
 	for _, name := range names {
 		sfs = append(sfs, p.CreateSourceFile("/src/"+name, files[name]))
 	}
-	pkg := NewPackage(p, sfs, "ts2gotest")
+	pkg := NewPackage(p, sfs, "uplifttest")
 	res, err := pkg.Transpile()
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +66,7 @@ func compilePackageGo(t *testing.T, files map[string]string) {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module ts2gotest\n\ngo 1.26.5\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module uplifttest\n\ngo 1.26.5\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command("go", "build", "./...")

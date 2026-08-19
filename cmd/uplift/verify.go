@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jclyons52/ts2go/internal/transpile"
+	"github.com/jclyons52/uplift/internal/transpile"
 )
 
 // verifyBuild closes the driver loop: the generated files are copied into a
@@ -18,7 +18,7 @@ import (
 // returned as a CompileError. Nothing is written to the real output; the
 // temp module is discarded.
 func verifyBuild(files []*transpile.FileResult) []transpile.CompileError {
-	dir, err := os.MkdirTemp("", "ts2go-verify")
+	dir, err := os.MkdirTemp("", "uplift-verify")
 	if err != nil {
 		return []transpile.CompileError{{Message: "verify: " + err.Error()}}
 	}
@@ -35,7 +35,7 @@ func verifyBuild(files []*transpile.FileResult) []transpile.CompileError {
 		}
 	}
 	goVer := goVersion()
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module ts2go_verify\n\ngo "+goVer+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module uplift_verify\n\ngo "+goVer+"\n"), 0o644); err != nil {
 		return []transpile.CompileError{{Message: "verify: " + err.Error()}}
 	}
 
@@ -65,7 +65,7 @@ func rewritePackageMain(code string) string {
 	if !strings.Contains(code, "package main\n") {
 		return code
 	}
-	return strings.Replace(code, "package main\n", "package ts2go_verify\n", 1)
+	return strings.Replace(code, "package main\n", "package uplift_verify\n", 1)
 }
 
 // errLineRe matches go build error lines:
@@ -142,5 +142,5 @@ func appendFindings(code *string, e transpile.CompileError) {
 	if e.Col == 0 {
 		loc = fmt.Sprintf("%s:%d", e.File, e.Line)
 	}
-	*code += fmt.Sprintf("\n// ts2go compile finding: %s: %s\n", loc, e.Message)
+	*code += fmt.Sprintf("\n// uplift compile finding: %s: %s\n", loc, e.Message)
 }

@@ -1,4 +1,4 @@
-// Command ts2go converts TypeScript source into Go. It uses ts-go-morph
+// Command uplift converts TypeScript source into Go. It uses ts-go-morph
 // (the Go port of the TypeScript compiler) to build a type-checked AST and
 // then emits idiomatic Go: interfaces → structs, enums → iota, classes →
 // structs + methods, function bodies translated statement-by-statement.
@@ -26,54 +26,54 @@ import (
 	"strings"
 
 	tsmorph "github.com/jclyons52/ts-go-morph"
-	"github.com/jclyons52/ts2go/internal/transpile"
+	"github.com/jclyons52/uplift/internal/transpile"
 )
 
 func main() {
-	// Subcommand: `ts2go lift <file.js|dir>` — JS→TS type lifting.
+	// Subcommand: `uplift lift <file.js|dir>` — JS→TS type lifting.
 	if len(os.Args) > 1 && os.Args[1] == "lift" {
 		runLift(os.Args[2:])
 		return
 	}
-	// Subcommand: `ts2go deps <dir>` — module-graph / leaf-node analysis.
+	// Subcommand: `uplift deps <dir>` — module-graph / leaf-node analysis.
 	if len(os.Args) > 1 && os.Args[1] == "deps" {
 		runDeps(os.Args[2:])
 		return
 	}
-	// Subcommand: `ts2go scaffold <dir>` — per-leaf library repo skeletons.
+	// Subcommand: `uplift scaffold <dir>` — per-leaf library repo skeletons.
 	if len(os.Args) > 1 && os.Args[1] == "scaffold" {
 		runScaffold(os.Args[2:])
 		return
 	}
-	// Subcommand: `ts2go registry [dir]` — npm→Go counterpart registry.
+	// Subcommand: `uplift registry [dir]` — npm→Go counterpart registry.
 	if len(os.Args) > 1 && os.Args[1] == "registry" {
 		runRegistry(os.Args[2:])
 		return
 	}
-	// Subcommand: `ts2go measure <dir>` — codebase quality metric report.
+	// Subcommand: `uplift measure <dir>` — codebase quality metric report.
 	if len(os.Args) > 1 && os.Args[1] == "measure" {
 		runMeasure(os.Args[2:])
 		return
 	}
-	// Subcommand: `ts2go bench` — node vs Go port benchmark.
+	// Subcommand: `uplift bench` — node vs Go port benchmark.
 	if len(os.Args) > 1 && os.Args[1] == "bench" {
 		runBench(os.Args[2:])
 		return
 	}
-	// Subcommand: `ts2go uplift <dir>` — status + prioritized next actions.
+	// Subcommand: `uplift uplift <dir>` — status + prioritized next actions.
 	if len(os.Args) > 1 && os.Args[1] == "uplift" {
 		runUplift(os.Args[2:])
 		return
 	}
-	fs := flag.NewFlagSet("ts2go", flag.ExitOnError)
+	fs := flag.NewFlagSet("uplift", flag.ExitOnError)
 	outFlag := fs.String("o", "", "output file (single input) or directory (multiple inputs); default: next to the input")
 	pkgFlag := fs.String("package", "", "Go package name for multi-file output (default: output directory base name)")
 	dryRun := fs.Bool("dry-run", false, "assess only: transpile in memory, print the post-work report, write nothing")
 	verify := fs.Bool("verify", true, "build the generated Go in a temp module and report compile errors as work items")
-	typeAudit := fs.Bool("type-audit", false, "also print the type-tightening worklist: sites where the checker resolves a concrete type but ts2go emitted any/dynamic")
+	typeAudit := fs.Bool("type-audit", false, "also print the type-tightening worklist: sites where the checker resolves a concrete type but uplift emitted any/dynamic")
 	reportFlag := fs.String("report", "", "write the full post-work report to this file (markdown)")
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: ts2go [flags] <file.ts|dir>...\n\nconverts TypeScript files to Go (one Go package per directory).\n\nflags:\n")
+		fmt.Fprintf(os.Stderr, "usage: uplift [flags] <file.ts|dir>...\n\nconverts TypeScript files to Go (one Go package per directory).\n\nflags:\n")
 		fs.PrintDefaults()
 	}
 	fs.Parse(os.Args[1:])
@@ -286,11 +286,11 @@ func runPackage(inputs []string, outFlag, pkgFlag string, dryRun, verify, typeAu
 	}
 }
 
-// validateInput rejects files ts2go cannot transpile with a clear message
+// validateInput rejects files uplift cannot transpile with a clear message
 // instead of a panic (a .js source file produces a nil SourceFile).
 func validateInput(path string) error {
 	if !strings.HasSuffix(path, ".ts") && !strings.HasSuffix(path, ".tsx") {
-		return fmt.Errorf("unsupported input %q: ts2go transpiles TypeScript. JavaScript/JSDoc support (ESLint-style codebases) is a planned future phase", path)
+		return fmt.Errorf("unsupported input %q: uplift transpiles TypeScript. JavaScript/JSDoc support (ESLint-style codebases) is a planned future phase", path)
 	}
 	return nil
 }

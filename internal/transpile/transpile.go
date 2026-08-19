@@ -80,13 +80,13 @@ type aliasInfo struct {
 // TightenSite is one place the transpiler emitted `any` (or a dynamic gap)
 // where the TypeScript checker resolved a concrete type. These are the
 // "tighten me" worklist: annotating the source (or the JSDoc, for JS input)
-// at this site gives ts2go the type it needs. The same checker-typing is the
+// at this site gives uplift the type it needs. The same checker-typing is the
 // basis of the JS→TS lifting path.
 type TightenSite struct {
 	Category    string // dynamic, param, return, var
 	Line        int
 	CheckerType string // what the checker resolved (e.g. "SymbolFlags")
-	Emitted     string // what ts2go emitted (usually "any")
+	Emitted     string // what uplift emitted (usually "any")
 	Snippet     string
 }
 

@@ -36,11 +36,11 @@ func compileGo(t *testing.T, name, src string) {
 	dir := t.TempDir()
 	// Compile as a library package: `package main` requires a main() func
 	// that a transpiled module won't have.
-	src = strings.Replace(src, "package main", "package ts2gotest", 1)
+	src = strings.Replace(src, "package main", "package uplifttest", 1)
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	gomod := "module ts2gotest\n\ngo 1.26.5\n"
+	gomod := "module uplifttest\n\ngo 1.26.5\n"
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(gomod), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +224,7 @@ class Foo {
 	if banned < 2 {
 		t.Fatalf("expected banned items in report, got: %s", r.String())
 	}
-	if !strings.Contains(out, "TODO(ts2go)") {
+	if !strings.Contains(out, "TODO(uplift)") {
 		t.Errorf("expected placeholders in output:\n%s", out)
 	}
 	compileGo(t, "banned.go", out)
@@ -248,7 +248,7 @@ function gaps(s: string): string {
 		t.Errorf("expected non-trivial complexity, report:\n%s", r.String())
 	}
 	// Manifest embedded in the generated file.
-	if !strings.Contains(out, "ts2go post-work manifest") {
+	if !strings.Contains(out, "uplift post-work manifest") {
 		t.Errorf("output missing manifest:\n%s", out)
 	}
 	compileGo(t, "gaps.go", out)
@@ -363,7 +363,7 @@ func runGo(t *testing.T, name, src, mainFn string) string {
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module ts2gorun\n\ngo 1.26.5\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module upliftrun\n\ngo 1.26.5\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command("go", "run", ".")

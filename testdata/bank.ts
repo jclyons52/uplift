@@ -1,4 +1,4 @@
-// Sample exercise for ts2go: a small banking domain with the type aliases
+// Sample exercise for uplift: a small banking domain with the type aliases
 // convention (uint8/int64 as number aliases) so the Go output has real
 // integer types.
 

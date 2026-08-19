@@ -9,7 +9,7 @@ package transpile
 // a seam that a later pass can replace with native Go concurrency without
 // touching the transpiled call sites.
 const jsrtShim = `
-// jsrt: minimal JS-style async runtime shim emitted by ts2go.
+// jsrt: minimal JS-style async runtime shim emitted by uplift.
 // Sequential semantics: goroutine-per-async-call, await parks the caller.
 type jsrtPromise struct {
 	wait chan struct{}

@@ -14,7 +14,7 @@ import (
 
 	tsmorph "github.com/jclyons52/ts-go-morph"
 	"github.com/jclyons52/ts-go-morph/third_party/typescript-go/ts/ast"
-	"github.com/jclyons52/ts2go/internal/deps"
+	"github.com/jclyons52/uplift/internal/deps"
 )
 
 // SchemaVersion marks the metric definitions so different report versions

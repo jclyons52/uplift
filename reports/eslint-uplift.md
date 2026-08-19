@@ -1,4 +1,4 @@
-# ESLint uplift status (ts2go uplift, schema uplift/v1)
+# ESLint uplift status (uplift uplift, schema uplift/v1)
 
 ```
 uplift status (schema uplift/v1) — /tmp/eslint-inspect/lib

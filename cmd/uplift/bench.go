@@ -6,10 +6,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jclyons52/ts2go/internal/bench"
+	"github.com/jclyons52/uplift/internal/bench"
 )
 
-// runBench implements `ts2go bench`: benchmark a pure function in both JS
+// runBench implements `uplift bench`: benchmark a pure function in both JS
 // (node) and a Go port across the same inputs, measuring wall time, memory,
 // and ops/sec — the performance/resource uplift metric.
 func runBench(args []string) {
@@ -24,7 +24,7 @@ func runBench(args []string) {
 	goDir := fs.String("go-dir", "", "absolute directory of the Go repo")
 	goFunc := fs.String("go-func", "", "exported Go function name to benchmark")
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: ts2go bench --js-module <js file> --js-func <fn> --go-import <imp> --go-dir <dir> --go-func <fn> [--inputs ...] [--iters N]\n\nbenchmarks a single-argument pure function (string|int) in node vs the Go\nport across the same inputs — wall time, memory, ops/sec.\n\nflags:\n")
+		fmt.Fprintf(os.Stderr, "usage: uplift bench --js-module <js file> --js-func <fn> --go-import <imp> --go-dir <dir> --go-func <fn> [--inputs ...] [--iters N]\n\nbenchmarks a single-argument pure function (string|int) in node vs the Go\nport across the same inputs — wall time, memory, ops/sec.\n\nflags:\n")
 		fs.PrintDefaults()
 	}
 	fs.Parse(reorderBenchArgs(args))

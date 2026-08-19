@@ -12,8 +12,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jclyons52/ts2go/internal/deps"
-	"github.com/jclyons52/ts2go/internal/measure"
+	"github.com/jclyons52/uplift/internal/deps"
+	"github.com/jclyons52/uplift/internal/measure"
 )
 
 // SchemaVersion identifies the report shape.

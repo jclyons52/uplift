@@ -1,9 +1,9 @@
-# ts2go — TypeScript → Go transpiler
+# uplift — TypeScript → Go transpiler
 
 **Goal:** convert a TypeScript codebase to Go for speed, using ts-go-morph
 (Go port of the TS compiler) for a type-checked AST. The tool is an
 **LLM-assist pipeline**: it emits as much idiomatic Go as possible, marks
-everything it cannot translate as a compiling `TODO(ts2go)` placeholder, and
+everything it cannot translate as a compiling `TODO(uplift)` placeholder, and
 produces a structured post-work report so the LLM gets a precise worklist
 instead of hunting through the output.
 
@@ -21,9 +21,9 @@ instead of hunting through the output.
 
 Transpilation **never aborts** on unsupported constructs:
 
-1. **Statement gaps** → `// TODO(ts2go): ...` + the TS snippet as a comment +
+1. **Statement gaps** → `// TODO(uplift): ...` + the TS snippet as a comment +
    `_ = 0` (compiles).
-2. **Expression gaps** → `any(nil) /* TODO(ts2go): ... */` (compiles in most
+2. **Expression gaps** → `any(nil) /* TODO(uplift): ... */` (compiles in most
    contexts; conditions are coerced to `false`).
 3. **Bans** (prototype tricks, eval, Proxy, `with`) are detected on the AST
    (call-target matching — no false positives from strings/comments) and
@@ -94,9 +94,9 @@ each becomes a placeholder + `banned` work item (redesign required).
 ## Architecture
 
 ```
-cmd/ts2go/main.go          CLI: -o, -dry-run, -report, -package, -verify;
+cmd/uplift/main.go          CLI: -o, -dry-run, -report, -package, -verify;
                            single file or directory/multi-file package mode
-cmd/ts2go/verify.go        Driver loop: build generated Go in a temp module,
+cmd/uplift/verify.go        Driver loop: build generated Go in a temp module,
                            parse `go build` findings, attach per-file
 internal/transpile/
   transpile.go             Transpiler, goType, alias fixpoint, string-union
@@ -145,30 +145,30 @@ reporting, placeholders + manifest, and report complexity.
 The TypeScript team ported their compiler to Go in ~18 months (announced
 Mar 2025, TypeScript 7.0 shipped) and documented the process in their blog
 posts, the typescript-go repo, and their agent playbook
-(`.github/agents/strada-corsa-port.md`). The lessons that map onto ts2go:
+(`.github/agents/strada-corsa-port.md`). The lessons that map onto uplift:
 
 - **Faithful port, not rewrite.** They wrote new Go code while keeping the
   structure and logic of the original 1:1, so results stay consistent
-  between the two compilers. ts2go is structural by construction (it
+  between the two compilers. uplift is structural by construction (it
   transpiles), but the rule still applies: never "improve" behavior during
   transpile — anything behavioral is a flagged `approx`.
 - **The original test suite is the oracle.** The Go repo imports the whole
   TypeScript test corpus via a git submodule pinned to the commit being
   ported. Tests are never ported — they are shared. Their headline parity
   metric is a number: ~20,000 tests, ~6,000 that produce errors, and the
-  divergence count (was 74 mid-port, now 0). → ts2go's equivalent: run the
+  divergence count (was 74 mid-port, now 0). → uplift's equivalent: run the
   ported project's own tests against the transpiled Go under the jsrt shim
   and report pass/fail vs the JS baseline.
 - **Diffs are the worklist.** Their loop: port → build → run tests →
   baseline diffs appear → adopt them → `git diff testdata/**/*.diff` must
-  SHRINK. "Your change is not correct unless diffs are reduced." ts2go's
+  SHRINK. "Your change is not correct unless diffs are reduced." uplift's
   driver loop (compile findings) is the compile-level half of this; the
   behavior-level half is the test corpus above.
 - **Pin the source.** The submodule pins the exact commit being ported;
   the JS line was feature-frozen during the port. Port a pinned snapshot of
   the source repo so reports are reproducible, then re-pin deltas.
 - **Port in dependency order.** Parser → binder → checker (bottom-up);
-  the port was usable the whole way. For ts2go: start with leaf packages
+  the port was usable the whole way. For uplift: start with leaf packages
   (no imports) — each compiles green per v0.3 — then move up; the package
   report's cross-package wiring items point exactly at the next layer.
 - **Keep both sides runnable.** They ran TS 6 and 7 side-by-side with a
@@ -178,7 +178,7 @@ posts, the typescript-go repo, and their agent playbook
 - **Agents are the porters, humans own the results.** They encode the
   porting protocol as Copilot instructions (fetch PR patch → translate →
   build → test → accept baselines → verify diffs reduced → commit) but
-  ban bulk agent-driven PRs. The ts2go driver loop + report is the same
+  ban bulk agent-driven PRs. The uplift driver loop + report is the same
   protocol shape; keep a human (or operator) accountable per change-set.
 
 ## Roadmap
@@ -205,7 +205,7 @@ native-concurrency pass. Next steps toward the north star:
    tests, and report pass/fail against the JS baseline as one number (the
    equivalent of their "74/6,000" count). This makes the port dirigible:
    every transpiler change either reduces divergence or is reverted.
-4. **JS→TS lift — DONE**: `ts2go lift` converts JS (JSDoc or
+4. **JS→TS lift — DONE**: `uplift lift` converts JS (JSDoc or
    not) to annotated TS via the checker (params, optional, rest, returns,
    contextual callbacks); output typechecks under `tsc --strict`. This makes
    JS codebases (ESLint-class) introspectable into the pipeline. Next:

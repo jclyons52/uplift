@@ -43,7 +43,7 @@ func Write(repos []Repo, opts Options) ([]string, error) {
 	// A backlog index tying the repos together.
 	if len(repos) > 0 {
 		var sb strings.Builder
-		fmt.Fprintf(&sb, "# Uplift port backlog\n\nRepos scaffolded from the dependency/leaf-node analysis. Each is a leaf\nlibrary in its own repo — transpile `original/` with ts2go, then clean.\n\n")
+		fmt.Fprintf(&sb, "# Uplift port backlog\n\nRepos scaffolded from the dependency/leaf-node analysis. Each is a leaf\nlibrary in its own repo — transpile `original/` with uplift, then clean.\n\n")
 		for _, r := range repos {
 			fmt.Fprintf(&sb, "- **%s** (`%s`) — %d LOC, API: %s\n",
 				r.Name, r.Module, r.Loc, apiSummary(r.Exports))
@@ -61,12 +61,12 @@ func goMod(r Repo) string {
 
 func pkgStub(r Repo) string {
 	return fmt.Sprintf(`// Package %s is the Go port of the npm package %q.
-// Scaffolded by the uplift port toolchain — transpile original/ with ts2go,
+// Scaffolded by the uplift port toolchain — transpile original/ with uplift,
 // then hand-clean and grow the API surface.
 package %s
 
 // Placeholder marks the start of the port.
-const Placeholder = "TODO: transpile original via ts2go"
+const Placeholder = "TODO: transpile original via uplift"
 `, r.Package, r.Name, r.Package)
 }
 

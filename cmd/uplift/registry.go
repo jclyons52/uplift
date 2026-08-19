@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jclyons52/ts2go/internal/deps"
+	"github.com/jclyons52/uplift/internal/deps"
 )
 
-// runRegistry implements `ts2go registry [dir]`: dump the npm→Go counterpart
+// runRegistry implements `uplift registry [dir]`: dump the npm→Go counterpart
 // registry. With a dir, marks entries referenced by that codebase. This is
 // the seed of a DefinitelyTyped-style shared npm→Go registry.
 func runRegistry(args []string) {
@@ -17,7 +17,7 @@ func runRegistry(args []string) {
 	jsonOut := fs.Bool("json", false, "emit the raw registry as JSON")
 	overlayFlag := fs.String("overlay", "", "optional JSON file extending/fixing the embedded registry")
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: ts2go registry [dir]\n\nprints the npm→Go counterpart registry (which existing Go modules / stdlib\ncover a TS/npm package, vs which must be ported). With a dir, marks the\npackages that codebase actually references.\n\nflags:\n")
+		fmt.Fprintf(os.Stderr, "usage: uplift registry [dir]\n\nprints the npm→Go counterpart registry (which existing Go modules / stdlib\ncover a TS/npm package, vs which must be ported). With a dir, marks the\npackages that codebase actually references.\n\nflags:\n")
 		fs.PrintDefaults()
 	}
 	fs.Parse(reorderRegistryArgs(args))

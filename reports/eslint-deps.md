@@ -1,6 +1,6 @@
 # ESLint dependency / leaf-node analysis
 
-Generated with `ts2go deps lib` — module-graph + leaf-node + size + exports + split-vs-absorb recommendations.
+Generated with `uplift deps lib` — module-graph + leaf-node + size + exports + split-vs-absorb recommendations.
 
 ```
 Module graph for /tmp/eslint-inspect/lib
