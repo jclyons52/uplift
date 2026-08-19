@@ -30,42 +30,43 @@ import (
 )
 
 func main() {
-	// Subcommand: `uplift lift <file.js|dir>` — JS→TS type lifting.
-	if len(os.Args) > 1 && os.Args[1] == "lift" {
-		runLift(os.Args[2:])
-		return
+	args := os.Args[1:]
+	if len(args) > 0 {
+		switch args[0] {
+		case "ts2go": // `uplift ts2go <file.ts|dir>` — the historic TS→Go transpiler as a subcommand
+			runTranspile(args[1:])
+			return
+		case "lift": // `uplift lift <file.js|dir>` — JS→TS type lifting
+			runLift(args[1:])
+			return
+		case "deps": // `uplift deps <dir>` — module-graph / leaf-node analysis
+			runDeps(args[1:])
+			return
+		case "scaffold": // `uplift scaffold <dir>` — per-leaf library repo skeletons
+			runScaffold(args[1:])
+			return
+		case "registry": // `uplift registry [dir]` — npm→Go counterpart registry
+			runRegistry(args[1:])
+			return
+		case "measure": // `uplift measure <dir>` — codebase quality metric report
+			runMeasure(args[1:])
+			return
+		case "bench": // `uplift bench` — node vs Go port benchmark
+			runBench(args[1:])
+			return
+		case "uplift": // `uplift uplift <dir>` — status + prioritized next actions
+			runUplift(args[1:])
+			return
+		}
 	}
-	// Subcommand: `uplift deps <dir>` — module-graph / leaf-node analysis.
-	if len(os.Args) > 1 && os.Args[1] == "deps" {
-		runDeps(os.Args[2:])
-		return
-	}
-	// Subcommand: `uplift scaffold <dir>` — per-leaf library repo skeletons.
-	if len(os.Args) > 1 && os.Args[1] == "scaffold" {
-		runScaffold(os.Args[2:])
-		return
-	}
-	// Subcommand: `uplift registry [dir]` — npm→Go counterpart registry.
-	if len(os.Args) > 1 && os.Args[1] == "registry" {
-		runRegistry(os.Args[2:])
-		return
-	}
-	// Subcommand: `uplift measure <dir>` — codebase quality metric report.
-	if len(os.Args) > 1 && os.Args[1] == "measure" {
-		runMeasure(os.Args[2:])
-		return
-	}
-	// Subcommand: `uplift bench` — node vs Go port benchmark.
-	if len(os.Args) > 1 && os.Args[1] == "bench" {
-		runBench(os.Args[2:])
-		return
-	}
-	// Subcommand: `uplift uplift <dir>` — status + prioritized next actions.
-	if len(os.Args) > 1 && os.Args[1] == "uplift" {
-		runUplift(os.Args[2:])
-		return
-	}
-	fs := flag.NewFlagSet("uplift", flag.ExitOnError)
+	// bare `uplift <file.ts|dir>...` — the transpiler (historic entry point)
+	runTranspile(args)
+}
+
+// runTranspile implements `uplift ts2go <file.ts|dir>` (and the bare
+// `uplift <file.ts|dir>` form): convert TypeScript to Go.
+func runTranspile(args []string) {
+	fs := flag.NewFlagSet("ts2go", flag.ExitOnError)
 	outFlag := fs.String("o", "", "output file (single input) or directory (multiple inputs); default: next to the input")
 	pkgFlag := fs.String("package", "", "Go package name for multi-file output (default: output directory base name)")
 	dryRun := fs.Bool("dry-run", false, "assess only: transpile in memory, print the post-work report, write nothing")
@@ -73,10 +74,10 @@ func main() {
 	typeAudit := fs.Bool("type-audit", false, "also print the type-tightening worklist: sites where the checker resolves a concrete type but uplift emitted any/dynamic")
 	reportFlag := fs.String("report", "", "write the full post-work report to this file (markdown)")
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: uplift [flags] <file.ts|dir>...\n\nconverts TypeScript files to Go (one Go package per directory).\n\nflags:\n")
+		fmt.Fprintf(os.Stderr, "usage: uplift ts2go [flags] <file.ts|dir>...\n\nconverts TypeScript files to Go (one Go package per directory).\n\nflags:\n")
 		fs.PrintDefaults()
 	}
-	fs.Parse(os.Args[1:])
+	fs.Parse(reorderTranspileArgs(args))
 
 	inputs := fs.Args()
 	if len(inputs) == 0 {
@@ -396,4 +397,29 @@ func writeReport(path, text string) {
 		os.Exit(1)
 	}
 	fmt.Fprintf(os.Stderr, "wrote report %s\n", path)
+}
+
+// reorderTranspileArgs lets flags appear after positional file/dir args
+// (`uplift ts2go testdata/bank.ts -dry-run`), matching the other subcommands.
+// Value-taking flags (-o, -package, -report) pull their value along.
+func reorderTranspileArgs(args []string) []string {
+	valueFlags := map[string]bool{"-o": true, "--o": true, "-package": true, "--package": true, "-report": true, "--report": true}
+	var flags, pos []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if valueFlags[a] {
+			flags = append(flags, a)
+			if i+1 < len(args) {
+				flags = append(flags, args[i+1])
+				i++
+			}
+			continue
+		}
+		if strings.HasPrefix(a, "-") {
+			flags = append(flags, a)
+			continue
+		}
+		pos = append(pos, a)
+	}
+	return append(flags, pos...)
 }

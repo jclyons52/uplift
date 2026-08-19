@@ -45,15 +45,20 @@ next lower-risk.
 ## CLI surface
 
 ```
-uplift <file.ts|dir>            # TS -> Go transpile (one Go package per directory)
+uplift ts2go <file.ts|dir>      # TS -> Go transpile (one Go package per directory); also bare `uplift <file...>`
 uplift lift js... -o out        # JS -> annotated TS via the checker
-uplift deps <dir> [--json]      # module graph: leaves, size, exports, split-vs-absorb verdict
+uplift deps <dir> [--json] [--check-updates]   # module graph: leaves, size, exports, freshness, split-vs-absorb
 uplift registry [dir]           # npm -> Go counterpart registry (stdlib, first-party port, or port/absorb)
 uplift scaffold <dir> --out R   # lay down a standalone library repo per "own-repo" leaf
 uplift measure <dir> [--json]   # quality metrics (schema measure/v1); --compare diff two snapshots
 uplift bench ...                # runtime comparator: node vs the Go port
 uplift <dir> [--json]           # status + prioritized next actions (schema uplift/v1)
 ```
+
+The TypeScript→Go transpiler lives behind the **`ts2go` subcommand** (its
+original name, kept as a subcommand so the uplift name owns the whole
+toolchain): `uplift ts2go <file.ts|dir>` — and bare `uplift <file.ts|dir>`
+still works as the historic shorthand.
 
 Every subcommand that reports structured data also accepts `--json` and emits
 a stable schema, so an **agent** can consume the same truth a human reads.
@@ -101,10 +106,10 @@ report. Every run (unless `-verify=false`) builds the generated Go in a temp
 module and feeds every compiler failure back into the report.
 
 ```bash
-uplift src/app.ts               # write app.go + print assessment summary
-uplift -dry-run src/app.ts      # assess only: no output file
-uplift src/                     # multi-file: one Go package per directory
-uplift -o out/ -package mypkg src/
+uplift ts2go src/app.ts               # write app.go + print assessment summary
+uplift ts2go -dry-run src/app.ts      # assess only: no output file
+uplift ts2go src/                     # multi-file: one Go package per directory
+uplift ts2go -o out/ -package mypkg src/
 ```
 
 ### The type-alias convention
@@ -199,7 +204,7 @@ post-effort before committing.
 go build ./...                 # build (binary: uplift)
 go test ./...                  # unit + end-to-end + 7 oracle parity suites
 gofmt -l .                     # must be empty
-go run ./cmd/uplift testdata/bank.ts   # try it
+go run ./cmd/uplift ts2go testdata/bank.ts   # try it
 ```
 
 The oracle parity suites transpile real ESLint/JS fixtures and diff the Go
