@@ -16,7 +16,11 @@ import (
 type Entry struct {
 	Op string `json:"op"`
 	// TODO: add payload fields, e.g. S string `json:"s"`, Ch int `json:"ch"`.
-	// NOTE: do NOT use omitempty on string fields you may pass as "".
+	// NOTE: use omitempty ONLY when an absent value and an empty value mean
+	// the same thing. A string/map/array field with omitempty is DROPPED when
+	// empty ("") — the JS driver sees `undefined`, not `""`/`{}`/`[]`, which
+	// changes behaviour (e.g. Object.keys(undefined) throws). If an empty
+	// value is a meaningful input, serialize it: `json:"s"` / `json:"obj"`.
 }
 
 // buildCorpus returns the cases to verify Go against the JS original.
