@@ -1,0 +1,128 @@
+package {{PACKAGE}}
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+// Entry is one parity case: an op plus its payload. Both this test and the
+// JS driver (node + the real original) compute a result per Entry so the two
+// compare 1:1. Add fields (and json tags) as your functions need them.
+type Entry struct {
+	Op string `json:"op"`
+	// TODO: add payload fields, e.g. S string `json:"s"`, Ch int `json:"ch"`.
+	// NOTE: do NOT use omitempty on string fields you may pass as "".
+}
+
+// buildCorpus returns the cases to verify Go against the JS original.
+// Fill this in as you port functions. See the js-to-go-port skill for the
+// shared patterns (null-safe vs throwing, surrogate/unicode handling).
+func buildCorpus() []Entry {
+	var es []Entry
+	_ = es
+	// TODO: append cases, e.g.
+	//   es = append(es, Entry{Op: "IsFoo", ...})
+	return es
+}
+
+// {{EXPORTS}}
+//
+// Add one Go/Js case per exported function as you port them.
+func goResult(e Entry) any {
+	switch e.Op {
+	// TODO: one case per function, calling the Go port, e.g.
+	// case "IsFoo": return IsFoo(...)
+	default:
+		return "UNKNOWN_OP:" + e.Op
+	}
+}
+
+const jsDriver = `{{JSDRIVER}}`
+
+// TestParity runs the Go port against the real JS original and requires the
+// outputs to agree on every corpus case. Skips when node is unavailable.
+func TestParity(t *testing.T) {
+	nodeBin, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not available; skipping JS parity")
+	}
+	orig, err := filepath.Abs("original")
+	if err != nil {
+		t.Fatal(err)
+	}
+	corpus := buildCorpus()
+	if len(corpus) == 0 {
+		t.Log("no parity cases yet; add some in buildCorpus()")
+		return
+	}
+
+	dir := t.TempDir()
+	corpusJSON, _ := json.Marshal(corpus)
+	if err := os.WriteFile(filepath.Join(dir, "corpus.json"), corpusJSON, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "driver.js"), []byte(jsDriver), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(nodeBin, "driver.js", "corpus.json", "result.json")
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "PORT_ORIG="+orig)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("node driver failed: %v\n%s", err, out)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "result.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var jsResults []any
+	if err := json.Unmarshal(raw, &jsResults); err != nil {
+		t.Fatalf("parse node result: %v", err)
+	}
+	if len(jsResults) != len(corpus) {
+		t.Fatalf("result length %d != corpus %d", len(jsResults), len(corpus))
+	}
+
+	mismatch := 0
+	limit := 20
+	for i, e := range corpus {
+		got := stringify(goResult(e))
+		want := stringify(jsResults[i])
+		if got != want {
+			mismatch++
+			if mismatch <= limit {
+				t.Errorf("op=%s payload=%v go=%v js=%v", e.Op, key(e), got, jsResults[i])
+			}
+		}
+	}
+	t.Logf("parity: %d cases, %d mismatches", len(corpus), mismatch)
+	if mismatch > 0 {
+		t.Fatalf("parity mismatch (%d/%d) vs real original", mismatch, len(corpus))
+	}
+}
+
+func stringify(v any) string {
+	switch t := v.(type) {
+	case bool:
+		if t {
+			return "true"
+		}
+		return "false"
+	case nil:
+		return "null"
+	default:
+		return fmt.Sprintf("%v", t)
+	}
+}
+
+func key(e Entry) string {
+	var b strings.Builder
+	b.WriteString(e.Op)
+	// TODO: append distinguishing payload values for readable errors
+	return b.String()
+}

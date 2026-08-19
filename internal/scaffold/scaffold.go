@@ -113,11 +113,38 @@ func sanitizeDir(name string) string {
 	return out
 }
 
-// sanitizePkg derives a Go package name from an npm name.
+// sanitizePkg derives a Go package name from an npm name, concatenating all
+// identifier characters (so "eslint-visitor-keys" -> "eslintvisitorkeys").
 func sanitizePkg(name string) string {
 	d := sanitizeDir(name)
-	parts := strings.SplitN(d, "-", 2)
-	return parts[0]
+	var b strings.Builder
+	for _, r := range d {
+		if r == '-' {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	p := b.String()
+	if p == "" {
+		return "pkg"
+	}
+	if p[0] >= '0' && p[0] <= '9' {
+		p = "_" + p
+	}
+	if goKeywords[p] {
+		p += "_"
+	}
+	return p
+}
+
+// goKeywords is the minimal set a package name must avoid.
+var goKeywords = map[string]bool{
+	"break": true, "default": true, "func": true, "interface": true,
+	"select": true, "case": true, "defer": true, "go": true, "map": true,
+	"struct": true, "chan": true, "else": true, "goto": true, "package": true,
+	"switch": true, "const": true, "fallthrough": true, "if": true, "range": true,
+	"type": true, "continue": true, "for": true, "import": true, "return": true,
+	"var": true,
 }
 
 // Describe renders the repo metadata block (README body).

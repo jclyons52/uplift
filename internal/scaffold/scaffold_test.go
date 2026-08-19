@@ -19,8 +19,14 @@ func TestSanitizeDir(t *testing.T) {
 	if got := sanitizePkg("chalk"); got != "chalk" {
 		t.Errorf("sanitizePkg(chalk) = %q", got)
 	}
-	if got := sanitizePkg("json-schema-traverse"); got != "json" {
-		t.Errorf("sanitizePkg(json-schema-traverse) = %q, want json", got)
+	if got := sanitizePkg("json-schema-traverse"); got != "jsonschematraverse" {
+		t.Errorf("sanitizePkg(json-schema-traverse) = %q, want jsonschematraverse", got)
+	}
+	if got := sanitizePkg("eslint-visitor-keys"); got != "eslintvisitorkeys" {
+		t.Errorf("sanitizePkg(eslint-visitor-keys) = %q, want eslintvisitorkeys", got)
+	}
+	if got := sanitizePkg("2to3"); got != "_2to3" {
+		t.Errorf("sanitizePkg(2to3) = %q, want _2to3", got)
 	}
 }
 

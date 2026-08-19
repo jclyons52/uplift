@@ -24,7 +24,7 @@ func Write(repos []Repo, opts Options) ([]string, error) {
 		if err := writeFile(filepath.Join(dir, r.Package+".go"), pkgStub(r)); err != nil {
 			return created, err
 		}
-		if err := writeFile(filepath.Join(dir, "parity_test.go"), parityStub(r)); err != nil {
+		if err := writeFile(filepath.Join(dir, "parity_test.go"), parityHarness(r)); err != nil {
 			return created, err
 		}
 		if err := writeFile(filepath.Join(dir, "README.md"), r.Describe()); err != nil {
@@ -68,21 +68,6 @@ package %s
 // Placeholder marks the start of the port.
 const Placeholder = "TODO: transpile original via ts2go"
 `, r.Package, r.Name, r.Package)
-}
-
-func parityStub(r Repo) string {
-	return fmt.Sprintf(`package %s
-
-import "testing"
-
-// TODO: once the port exists, add parity cases mirroring the original's
-// public API (see the oracle harness in jclyons52/ts2go).
-func TestPlaceholder(t *testing.T) {
-	if Placeholder == "" {
-		t.Fatal("placeholder is empty")
-	}
-}
-`, r.Package)
 }
 
 func apiSummary(exports []string) string {
