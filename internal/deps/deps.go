@@ -577,33 +577,70 @@ func readPackage(dir string) (packageJSON, error) {
 // sharpens the "too small to split (leftPad-class)" vs "worth a repo" call:
 // a leftPad-style dep has a single export while a real library has many.
 func discoveredExports(dir string, pj packageJSON) []string {
-	// Resolve the entry the way Node would: package.json "main", else index.js.
+	// 1) Try the package entry ("main", else index), honoring its real
+	//    extension (.js, .cjs, .mjs, .ts — do NOT force .js).
 	entry := pj.Main
 	if entry == "" {
 		entry = "index.js"
 	}
-	candidates := []string{
-		entry,
-		strings.TrimSuffix(entry, ".js") + ".js",
+	var candidates []string
+	for _, cand := range []string{entry, entry + ".js", entry + ".cjs", entry + ".mjs"} {
+		if strings.HasSuffix(cand, ".js") || strings.HasSuffix(cand, ".cjs") || strings.HasSuffix(cand, ".mjs") {
+			candidates = append(candidates, filepath.Join(dir, cand))
+		}
 	}
 	seenPkg := map[string]bool{}
-	for _, cand := range candidates {
-		if !strings.HasSuffix(cand, ".js") {
-			cand += ".js"
+	var out []string
+	for _, full := range candidates {
+		b, err := os.ReadFile(full)
+		if err != nil || seenPkg[full] {
+			continue
 		}
-		full := filepath.Join(dir, cand)
-		if b, err := os.ReadFile(full); err == nil && !seenPkg[cand] {
-			seenPkg[cand] = true
-			if got := entryExports(string(b)); len(got) > 0 {
-				return got
+		seenPkg[full] = true
+		if got := entryExports(string(b)); len(got) > 0 {
+			return got
+		}
+	}
+	// 2) Fall back: scan the whole package source so lib/dist subfiles and
+	//    function-with-properties entries are still counted.
+	scanPkg(dir, func(src string) { out = union(out, entryExports(src)) })
+	return out
+}
+
+// scanPkg walks a package dir (skipping nested node_modules) and calls fn
+// with each JS/TS source file's text.
+func scanPkg(dir string, fn func(src string)) {
+	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if d.Name() == "node_modules" || d.Name() == ".git" {
+				return filepath.SkipDir
 			}
+			return nil
 		}
+		base := filepath.Base(p)
+		if strings.HasPrefix(base, ".") || strings.Contains(base, ".min.") {
+			return nil
+		}
+		switch filepath.Ext(p) {
+		case ".js", ".jsx", ".cjs", ".mjs", ".ts", ".tsx":
+		default:
+			return nil
+		}
+		if b, err := os.ReadFile(p); err == nil {
+			fn(string(b))
+		}
+		return nil
+	})
+}
+
+func union(list []string, add []string) []string {
+	for _, v := range add {
+		list = addUnique(list, v)
 	}
-	// fall back to any top-level index file
-	if b, err := os.ReadFile(filepath.Join(dir, "index.js")); err == nil && !seenPkg["index.js"] {
-		return entryExports(string(b))
-	}
-	return nil
+	return list
 }
 
 // entryExports extracts export names from a CommonJS/ESM entry source:
