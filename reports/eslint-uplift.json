@@ -2195,128 +2195,191 @@
       "stage": "port",
       "kind": "port",
       "target": "esquery",
-      "reason": "15022 LOC leaf; no Go counterpart"
+      "reason": "15022 LOC leaf; no Go counterpart; installed v1.7.0"
     },
     {
       "rank": 11,
       "stage": "port",
       "kind": "port",
       "target": "acorn",
-      "reason": "6436 LOC leaf; no Go counterpart"
+      "reason": "6436 LOC leaf; no Go counterpart; installed v8.18.0"
     },
     {
       "rank": 12,
       "stage": "port",
       "kind": "port",
       "target": "@eslint-community/regexpp",
-      "reason": "4184 LOC leaf; no Go counterpart"
+      "reason": "4184 LOC leaf; no Go counterpart; installed v4.12.2"
     }
   ],
   "portBacklog": [
     {
       "name": "esquery",
       "goModule": "github.com/jclyons52/esquery-go",
-      "loc": 15022
+      "loc": 15022,
+      "version": "1.7.0",
+      "latest": "1.7.0",
+      "stale": false
     },
     {
       "name": "acorn",
       "goModule": "github.com/jclyons52/acorn-go",
-      "loc": 6436
+      "loc": 6436,
+      "version": "8.18.0",
+      "latest": "8.18.0",
+      "stale": false
     },
     {
       "name": "@eslint-community/regexpp",
       "goModule": "github.com/jclyons52/eslint-community-regexpp-go",
-      "loc": 4184
+      "loc": 4184,
+      "version": "4.12.2",
+      "latest": "4.12.2",
+      "stale": false
     },
     {
       "name": "argparse",
       "goModule": "github.com/jclyons52/argparse-go",
-      "loc": 3691
+      "loc": 3691,
+      "version": "2.0.1",
+      "latest": "3.0.0",
+      "stale": true
     },
     {
       "name": "uri-js",
       "goModule": "github.com/jclyons52/uri-js-go",
-      "loc": 2390
+      "loc": 2390,
+      "version": "4.4.1",
+      "latest": "4.4.1",
+      "stale": false
     },
     {
       "name": "type-fest",
       "goModule": "github.com/jclyons52/type-fest-go",
-      "loc": 2311
+      "loc": 2311,
+      "version": "0.20.2",
+      "latest": "5.8.0",
+      "stale": true
     },
     {
       "name": "eslint-scope",
       "goModule": "github.com/jclyons52/eslint-scope-go",
-      "loc": 1931
+      "loc": 1931,
+      "version": "7.2.2",
+      "latest": "9.1.2",
+      "stale": true
     },
     {
       "name": "lodash.merge",
       "goModule": "github.com/jclyons52/lodash-merge-go",
-      "loc": 1819
+      "loc": 1819,
+      "version": "4.6.2",
+      "latest": "4.6.2",
+      "stale": false
     },
     {
       "name": "prelude-ls",
       "goModule": "github.com/jclyons52/prelude-ls-go",
-      "loc": 1339
+      "loc": 1339,
+      "version": "1.2.1",
+      "latest": "1.2.1",
+      "stale": false
     },
     {
       "name": "ignore",
       "goModule": "github.com/jclyons52/ignore-go",
-      "loc": 1102
+      "loc": 1102,
+      "version": "5.3.2",
+      "latest": "7.0.6",
+      "stale": true
     },
     {
       "name": "espree",
       "goModule": "github.com/jclyons52/espree-go",
-      "loc": 783
+      "loc": 783,
+      "version": "9.6.1",
+      "latest": "11.2.0",
+      "stale": true
     },
     {
       "name": "estraverse",
       "goModule": "github.com/jclyons52/estraverse-go",
-      "loc": 756
+      "loc": 756,
+      "version": "5.3.0",
+      "latest": "5.3.0",
+      "stale": false
     },
     {
       "name": "debug",
       "goModule": "github.com/jclyons52/debug-go",
-      "loc": 735
+      "loc": 735,
+      "version": "4.4.3",
+      "latest": "4.4.3",
+      "stale": false
     },
     {
       "name": "@ungap/structured-clone",
       "goModule": "github.com/jclyons52/ungap-structured-clone-go",
-      "loc": 609
+      "loc": 609,
+      "version": "1.3.3",
+      "latest": "1.3.3",
+      "stale": false
     },
     {
       "name": "esutils",
       "goModule": "github.com/jclyons52/esutils-go",
-      "loc": 409
+      "loc": 409,
+      "version": "2.0.3",
+      "latest": "2.0.3",
+      "stale": false
     },
     {
       "name": "@humanwhocodes/object-schema",
       "goModule": "github.com/jclyons52/humanwhocodes-object-schema-go",
-      "loc": 395
+      "loc": 395,
+      "version": "2.0.3",
+      "latest": "2.0.3",
+      "stale": false
     },
     {
       "name": "flatted",
       "goModule": "github.com/jclyons52/flatted-go",
-      "loc": 374
+      "loc": 374,
+      "version": "3.4.4",
+      "latest": "3.4.4",
+      "stale": false
     },
     {
       "name": "json-schema-traverse",
       "goModule": "github.com/jclyons52/json-schema-traverse-go",
-      "loc": 331
+      "loc": 331,
+      "version": "0.4.1",
+      "latest": "1.0.0",
+      "stale": true
     },
     {
       "name": "isexe",
       "goModule": "github.com/jclyons52/isexe-go",
-      "loc": 318
+      "loc": 318,
+      "version": "2.0.0",
+      "latest": "4.0.0",
+      "stale": true
     },
     {
       "name": "@nodelib/fs.stat",
       "goModule": "github.com/jclyons52/nodelib-fs-stat-go",
-      "loc": 172
+      "loc": 172,
+      "version": "2.0.5",
+      "latest": "4.0.0",
+      "stale": true
     },
     {
       "name": "color-name",
       "goModule": "github.com/jclyons52/color-name-go",
-      "loc": 151
+      "loc": 151,
+      "version": "1.1.4",
+      "latest": "2.1.1",
+      "stale": true
     }
   ]
 }

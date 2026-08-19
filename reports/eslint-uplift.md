@@ -1,4 +1,4 @@
-# ESLint uplift status (uplift uplift, schema uplift/v1)
+# ESLint uplift status (uplift --check-updates, schema uplift/v1)
 
 ```
 uplift status (schema uplift/v1) — /tmp/eslint-inspect/lib
@@ -23,7 +23,7 @@ next actions (highest value first):
   7. [decouple] hub linter/linter.js — fan-out 20
   8. [decouple] hub cli-engine/cli-engine.js — fan-out 8
   9. [tests] add-test parity — no parity suites; add one per ported library
-  10. [port] port esquery — 15022 LOC leaf; no Go counterpart
-  11. [port] port acorn — 6436 LOC leaf; no Go counterpart
-  12. [port] port @eslint-community/regexpp — 4184 LOC leaf; no Go counterpart
+  10. [port] port esquery — 15022 LOC leaf; no Go counterpart; installed v1.7.0
+  11. [port] port acorn — 6436 LOC leaf; no Go counterpart; installed v8.18.0
+  12. [port] port @eslint-community/regexpp — 4184 LOC leaf; no Go counterpart; installed v4.12.2
 ```
