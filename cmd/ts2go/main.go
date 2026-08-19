@@ -50,6 +50,11 @@ func main() {
 		runRegistry(os.Args[2:])
 		return
 	}
+	// Subcommand: `ts2go measure <dir>` — codebase quality metric report.
+	if len(os.Args) > 1 && os.Args[1] == "measure" {
+		runMeasure(os.Args[2:])
+		return
+	}
 	fs := flag.NewFlagSet("ts2go", flag.ExitOnError)
 	outFlag := fs.String("o", "", "output file (single input) or directory (multiple inputs); default: next to the input")
 	pkgFlag := fs.String("package", "", "Go package name for multi-file output (default: output directory base name)")
