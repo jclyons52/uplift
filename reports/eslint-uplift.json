@@ -1,0 +1,2322 @@
+{
+  "schemaVersion": "uplift/v1",
+  "root": "/tmp/eslint-inspect/lib",
+  "metrics": {
+    "schemaVersion": "measure/v1",
+    "root": "/tmp/eslint-inspect/lib",
+    "totals": {
+      "files": 383,
+      "loc": 70858
+    },
+    "typeCoverage": {
+      "annotated": 2,
+      "unannotated": 2252,
+      "ratio": 0.0008873114463176575,
+      "byFile": [
+        {
+          "file": "rules/utils/ast-utils.js",
+          "annotated": 0,
+          "unannotated": 147
+        },
+        {
+          "file": "linter/linter.js",
+          "annotated": 0,
+          "unannotated": 115
+        },
+        {
+          "file": "rule-tester/rule-tester.js",
+          "annotated": 0,
+          "unannotated": 60
+        },
+        {
+          "file": "rule-tester/flat-rule-tester.js",
+          "annotated": 0,
+          "unannotated": 53
+        },
+        {
+          "file": "eslint/flat-eslint.js",
+          "annotated": 0,
+          "unannotated": 51
+        },
+        {
+          "file": "shared/config-validator.js",
+          "annotated": 0,
+          "unannotated": 50
+        },
+        {
+          "file": "cli-engine/cli-engine.js",
+          "annotated": 0,
+          "unannotated": 47
+        },
+        {
+          "file": "eslint/eslint-helpers.js",
+          "annotated": 0,
+          "unannotated": 45
+        },
+        {
+          "file": "config/flat-config-schema.js",
+          "annotated": 0,
+          "unannotated": 41
+        },
+        {
+          "file": "linter/code-path-analysis/code-path-analyzer.js",
+          "annotated": 0,
+          "unannotated": 40
+        },
+        {
+          "file": "rules/padding-line-between-statements.js",
+          "annotated": 0,
+          "unannotated": 38
+        },
+        {
+          "file": "source-code/token-store/index.js",
+          "annotated": 0,
+          "unannotated": 38
+        },
+        {
+          "file": "source-code/source-code.js",
+          "annotated": 0,
+          "unannotated": 36
+        },
+        {
+          "file": "eslint/eslint.js",
+          "annotated": 0,
+          "unannotated": 33
+        },
+        {
+          "file": "cli.js",
+          "annotated": 0,
+          "unannotated": 31
+        },
+        {
+          "file": "linter/code-path-analysis/code-path-state.js",
+          "annotated": 0,
+          "unannotated": 31
+        },
+        {
+          "file": "linter/report-translator.js",
+          "annotated": 0,
+          "unannotated": 31
+        },
+        {
+          "file": "rules/prefer-object-spread.js",
+          "annotated": 0,
+          "unannotated": 30
+        },
+        {
+          "file": "rules/no-duplicate-imports.js",
+          "annotated": 0,
+          "unannotated": 29
+        },
+        {
+          "file": "rules/no-implicit-coercion.js",
+          "annotated": 0,
+          "unannotated": 28
+        },
+        {
+          "file": "rules/no-constant-binary-expression.js",
+          "annotated": 0,
+          "unannotated": 27
+        },
+        {
+          "file": "rules/logical-assignment-operators.js",
+          "annotated": 0,
+          "unannotated": 26
+        },
+        {
+          "file": "rules/prefer-const.js",
+          "annotated": 0,
+          "unannotated": 26
+        },
+        {
+          "file": "cli-engine/formatters/html.js",
+          "annotated": 0,
+          "unannotated": 23
+        },
+        {
+          "file": "cli-engine/file-enumerator.js",
+          "annotated": 0,
+          "unannotated": 22
+        },
+        {
+          "file": "rules/no-unmodified-loop-condition.js",
+          "annotated": 0,
+          "unannotated": 22
+        },
+        {
+          "file": "rules/no-var.js",
+          "annotated": 0,
+          "unannotated": 22
+        },
+        {
+          "file": "rules/array-callback-return.js",
+          "annotated": 0,
+          "unannotated": 21
+        },
+        {
+          "file": "rules/no-promise-executor-return.js",
+          "annotated": 0,
+          "unannotated": 21
+        },
+        {
+          "file": "rules/no-useless-constructor.js",
+          "annotated": 0,
+          "unannotated": 21
+        },
+        {
+          "file": "linter/node-event-generator.js",
+          "annotated": 0,
+          "unannotated": 19
+        },
+        {
+          "file": "rules/no-mixed-operators.js",
+          "annotated": 0,
+          "unannotated": 19
+        },
+        {
+          "file": "rules/no-setter-return.js",
+          "annotated": 0,
+          "unannotated": 19
+        },
+        {
+          "file": "linter/apply-disable-directives.js",
+          "annotated": 0,
+          "unannotated": 18
+        },
+        {
+          "file": "rules/no-import-assign.js",
+          "annotated": 0,
+          "unannotated": 17
+        },
+        {
+          "file": "rules/accessor-pairs.js",
+          "annotated": 0,
+          "unannotated": 16
+        },
+        {
+          "file": "rules/key-spacing.js",
+          "annotated": 0,
+          "unannotated": 16
+        },
+        {
+          "file": "rules/no-use-before-define.js",
+          "annotated": 0,
+          "unannotated": 16
+        },
+        {
+          "file": "cli-engine/lint-result-cache.js",
+          "annotated": 0,
+          "unannotated": 15
+        },
+        {
+          "file": "rules/no-fallthrough.js",
+          "annotated": 0,
+          "unannotated": 15
+        },
+        {
+          "file": "rules/object-curly-newline.js",
+          "annotated": 0,
+          "unannotated": 15
+        },
+        {
+          "file": "rules/prefer-template.js",
+          "annotated": 0,
+          "unannotated": 15
+        },
+        {
+          "file": "rules/spaced-comment.js",
+          "annotated": 0,
+          "unannotated": 15
+        },
+        {
+          "file": "linter/timing.js",
+          "annotated": 0,
+          "unannotated": 14
+        },
+        {
+          "file": "rules/capitalized-comments.js",
+          "annotated": 0,
+          "unannotated": 14
+        },
+        {
+          "file": "rules/keyword-spacing.js",
+          "annotated": 0,
+          "unannotated": 14
+        },
+        {
+          "file": "rules/prefer-arrow-callback.js",
+          "annotated": 0,
+          "unannotated": 13
+        },
+        {
+          "file": "rules/prefer-exponentiation-operator.js",
+          "annotated": 0,
+          "unannotated": 13
+        },
+        {
+          "file": "rules/yoda.js",
+          "annotated": 0,
+          "unannotated": 13
+        },
+        {
+          "file": "linter/code-path-analysis/fork-context.js",
+          "annotated": 0,
+          "unannotated": 12
+        },
+        {
+          "file": "rules/no-alert.js",
+          "annotated": 0,
+          "unannotated": 12
+        },
+        {
+          "file": "rules/radix.js",
+          "annotated": 0,
+          "unannotated": 12
+        },
+        {
+          "file": "config/flat-config-array.js",
+          "annotated": 0,
+          "unannotated": 11
+        },
+        {
+          "file": "rules/new-cap.js",
+          "annotated": 0,
+          "unannotated": 11
+        },
+        {
+          "file": "rules/no-misleading-character-class.js",
+          "annotated": 0,
+          "unannotated": 11
+        },
+        {
+          "file": "rules/no-useless-return.js",
+          "annotated": 0,
+          "unannotated": 11
+        },
+        {
+          "file": "rules/no-dupe-else-if.js",
+          "annotated": 0,
+          "unannotated": 10
+        },
+        {
+          "file": "rules/no-useless-escape.js",
+          "annotated": 0,
+          "unannotated": 10
+        },
+        {
+          "file": "rules/prefer-regex-literals.js",
+          "annotated": 0,
+          "unannotated": 10
+        },
+        {
+          "file": "linter/source-code-fixer.js",
+          "annotated": 0,
+          "unannotated": 9
+        },
+        {
+          "file": "rules/func-name-matching.js",
+          "annotated": 0,
+          "unannotated": 9
+        },
+        {
+          "file": "rules/grouped-accessor-pairs.js",
+          "annotated": 0,
+          "unannotated": 9
+        },
+        {
+          "file": "rules/no-useless-backreference.js",
+          "annotated": 0,
+          "unannotated": 9
+        },
+        {
+          "file": "rules/no-useless-concat.js",
+          "annotated": 0,
+          "unannotated": 9
+        },
+        {
+          "file": "rules/id-blacklist.js",
+          "annotated": 0,
+          "unannotated": 8
+        },
+        {
+          "file": "rules/no-loop-func.js",
+          "annotated": 0,
+          "unannotated": 8
+        },
+        {
+          "file": "rules/no-unreachable-loop.js",
+          "annotated": 0,
+          "unannotated": 8
+        },
+        {
+          "file": "rules/prefer-named-capture-group.js",
+          "annotated": 0,
+          "unannotated": 8
+        },
+        {
+          "file": "rules/require-atomic-updates.js",
+          "annotated": 0,
+          "unannotated": 8
+        },
+        {
+          "file": "shared/traverser.js",
+          "annotated": 0,
+          "unannotated": 8
+        },
+        {
+          "file": "api.js",
+          "annotated": 0,
+          "unannotated": 7
+        },
+        {
+          "file": "config/flat-config-helpers.js",
+          "annotated": 0,
+          "unannotated": 7
+        },
+        {
+          "file": "config/rule-validator.js",
+          "annotated": 0,
+          "unannotated": 7
+        },
+        {
+          "file": "rules/comma-dangle.js",
+          "annotated": 0,
+          "unannotated": 7
+        },
+        {
+          "file": "rules/global-require.js",
+          "annotated": 0,
+          "unannotated": 7
+        },
+        {
+          "file": "rules/no-self-assign.js",
+          "annotated": 0,
+          "unannotated": 7
+        },
+        {
+          "file": "rules/no-unsafe-negation.js",
+          "annotated": 0,
+          "unannotated": 7
+        },
+        {
+          "file": "rules/no-useless-call.js",
+          "annotated": 0,
+          "unannotated": 7
+        },
+        {
+          "file": "rules/operator-assignment.js",
+          "annotated": 0,
+          "unannotated": 7
+        },
+        {
+          "file": "rules/prefer-spread.js",
+          "annotated": 0,
+          "unannotated": 7
+        },
+        {
+          "file": "rules/strict.js",
+          "annotated": 0,
+          "unannotated": 7
+        },
+        {
+          "file": "shared/runtime-info.js",
+          "annotated": 0,
+          "unannotated": 7
+        },
+        {
+          "file": "shared/string-utils.js",
+          "annotated": 0,
+          "unannotated": 7
+        },
+        {
+          "file": "source-code/token-store/cursors.js",
+          "annotated": 0,
+          "unannotated": 7
+        },
+        {
+          "file": "cli-engine/formatters/junit.js",
+          "annotated": 0,
+          "unannotated": 6
+        },
+        {
+          "file": "cli-engine/formatters/stylish.js",
+          "annotated": 0,
+          "unannotated": 6
+        },
+        {
+          "file": "linter/code-path-analysis/debug-helpers.js",
+          "annotated": 0,
+          "unannotated": 6
+        },
+        {
+          "file": "rules/consistent-return.js",
+          "annotated": 0,
+          "unannotated": 6
+        },
+        {
+          "file": "rules/constructor-super.js",
+          "annotated": 0,
+          "unannotated": 6
+        },
+        {
+          "file": "rules/id-denylist.js",
+          "annotated": 0,
+          "unannotated": 6
+        },
+        {
+          "file": "rules/max-lines-per-function.js",
+          "annotated": 0,
+          "unannotated": 6
+        },
+        {
+          "file": "rules/no-regex-spaces.js",
+          "annotated": 0,
+          "unannotated": 6
+        },
+        {
+          "file": "rules/semi-style.js",
+          "annotated": 0,
+          "unannotated": 6
+        },
+        {
+          "file": "shared/deprecation-warnings.js",
+          "annotated": 0,
+          "unannotated": 6
+        },
+        {
+          "file": "cli-engine/formatters/tap.js",
+          "annotated": 0,
+          "unannotated": 5
+        },
+        {
+          "file": "rules/lines-around-comment.js",
+          "annotated": 0,
+          "unannotated": 5
+        },
+        {
+          "file": "rules/no-await-in-loop.js",
+          "annotated": 0,
+          "unannotated": 5
+        },
+        {
+          "file": "rules/no-eval.js",
+          "annotated": 0,
+          "unannotated": 5
+        },
+        {
+          "file": "rules/no-inner-declarations.js",
+          "annotated": 0,
+          "unannotated": 5
+        },
+        {
+          "file": "rules/no-irregular-whitespace.js",
+          "annotated": 0,
+          "unannotated": 5
+        },
+        {
+          "file": "rules/no-obj-calls.js",
+          "annotated": 0,
+          "unannotated": 5
+        },
+        {
+          "file": "rules/no-shadow.js",
+          "annotated": 0,
+          "unannotated": 5
+        },
+        {
+          "file": "rules/no-unsafe-optional-chaining.js",
+          "annotated": 0,
+          "unannotated": 5
+        },
+        {
+          "file": "rules/sort-keys.js",
+          "annotated": 0,
+          "unannotated": 5
+        },
+        {
+          "file": "rules/utils/regular-expressions.js",
+          "annotated": 0,
+          "unannotated": 5
+        },
+        {
+          "file": "linter/config-comment-parser.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "linter/rule-fixer.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/dot-notation.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/getter-return.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/init-declarations.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/max-lines.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/no-empty-function.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/no-invalid-regexp.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/no-invalid-this.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/no-magic-numbers.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/no-plusplus.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/no-restricted-imports.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/no-restricted-modules.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/no-unneeded-ternary.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/no-unreachable.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/prefer-numeric-literals.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/prefer-rest-params.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/quotes.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "rules/wrap-iife.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "shared/ast-utils.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "shared/severity.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "unsupported-api.js",
+          "annotated": 0,
+          "unannotated": 4
+        },
+        {
+          "file": "cli-engine/formatters/checkstyle.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "cli-engine/hash.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "cli-engine/load-rules.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "linter/code-path-analysis/code-path-segment.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "linter/index.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "linter/rules.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/arrow-parens.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/func-names.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/indent.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/no-cond-assign.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/no-confusing-arrow.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/no-dupe-keys.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/no-empty-character-class.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/no-extra-boolean-cast.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/no-nonoctal-decimal-escape.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/no-prototype-builtins.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/no-this-before-super.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/no-unsafe-finally.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/no-unused-expressions.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/no-useless-computed-key.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/no-warning-comments.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/one-var.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/prefer-object-has-own.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/quote-props.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/require-await.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/require-unicode-regexp.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/space-before-blocks.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "rules/use-isnan.js",
+          "annotated": 0,
+          "unannotated": 3
+        },
+        {
+          "file": "cli-engine/formatters/unix.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "cli-engine/formatters/visualstudio.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "eslint/index.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "linter/code-path-analysis/code-path.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/complexity.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/jsx-quotes.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/lines-between-class-members.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/max-len.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/max-params.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/max-statements.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/no-control-regex.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/no-else-return.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/no-extend-native.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/no-extra-bind.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/no-extra-parens.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/no-extra-semi.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/no-implied-eval.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/no-new-func.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/no-return-assign.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/no-sequences.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/no-shadow-restricted-names.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/no-tabs.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/no-undef.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/object-shorthand.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/prefer-destructuring.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "rules/semi.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "shared/ajv.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "source-code/token-store/backward-token-comment-cursor.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "source-code/token-store/backward-token-cursor.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "source-code/token-store/forward-token-comment-cursor.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "source-code/token-store/forward-token-cursor.js",
+          "annotated": 0,
+          "unannotated": 2
+        },
+        {
+          "file": "cli-engine/formatters/jslint-xml.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "cli-engine/index.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "config/default-config.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "options.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/array-bracket-newline.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/array-bracket-spacing.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/array-element-newline.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/arrow-body-style.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/arrow-spacing.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/block-spacing.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/brace-style.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/camelcase.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/class-methods-use-this.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/comma-spacing.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/comma-style.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/computed-property-spacing.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/curly.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/default-case.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/dot-location.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/eqeqeq.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/for-direction.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/func-call-spacing.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/function-paren-newline.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/generator-star-spacing.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/id-length.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/implicit-arrow-linebreak.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/indent-legacy.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/index.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/line-comment-position.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/linebreak-style.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/lines-around-directive.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/max-statements-per-line.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/multiline-comment-style.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/multiline-ternary.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/new-parens.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/newline-after-var.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/newline-per-chained-call.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-array-constructor.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-bitwise.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-catch-shadow.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-class-assign.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-console.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-const-assign.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-constant-condition.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-dupe-class-members.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-duplicate-case.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-empty-pattern.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-empty.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-ex-assign.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-extra-label.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-floating-decimal.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-func-assign.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-inline-comments.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-iterator.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-label-var.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-labels.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-multi-spaces.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-multi-str.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-new-native-nonconstructor.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-new-object.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-new-wrappers.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-object-constructor.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-param-reassign.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-proto.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-redeclare.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-restricted-exports.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-restricted-properties.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-return-await.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-script-url.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-throw-literal.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-trailing-spaces.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-undef-init.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-unexpected-multiline.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-unused-labels.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-unused-vars.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-useless-rename.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/no-whitespace-before-property.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/nonblock-statement-body-position.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/object-curly-spacing.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/operator-linebreak.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/padded-blocks.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/prefer-promise-reject-errors.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/semi-spacing.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/space-before-function-paren.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/space-in-parens.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/space-infix-ops.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/space-unary-ops.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/switch-colon-spacing.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/symbol-description.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/template-curly-spacing.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/utils/fix-tracker.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/utils/lazy-loading-rule-map.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/valid-jsdoc.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "rules/valid-typeof.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "shared/directives.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "shared/relative-module-resolver.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "source-code/token-store/decorative-cursor.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "source-code/token-store/filter-cursor.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "source-code/token-store/limit-cursor.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "source-code/token-store/padded-token-cursor.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "source-code/token-store/skip-cursor.js",
+          "annotated": 0,
+          "unannotated": 1
+        },
+        {
+          "file": "cli-engine/formatters/compact.ts",
+          "annotated": 2,
+          "unannotated": 0
+        },
+        {
+          "file": "cli-engine/formatters/json-with-metadata.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "cli-engine/formatters/json.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "cli-engine/xml-escape.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "linter/code-path-analysis/id-generator.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "linter/interpolate.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "linter/safe-emitter.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rule-tester/index.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/block-scoped-var.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/callback-return.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/consistent-this.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/default-case-last.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/default-param-last.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/eol-last.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/func-style.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/function-call-argument-newline.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/guard-for-in.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/handle-callback-err.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/id-match.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/max-classes-per-file.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/max-depth.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/max-nested-callbacks.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/newline-before-return.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-async-promise-executor.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-buffer-constructor.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-caller.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-case-declarations.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-compare-neg-zero.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-constructor-return.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-continue.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-debugger.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-delete-var.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-div-regex.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-dupe-args.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-empty-static-block.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-eq-null.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-global-assign.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-implicit-globals.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-lone-blocks.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-lonely-if.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-loss-of-precision.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-mixed-requires.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-mixed-spaces-and-tabs.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-multi-assign.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-multiple-empty-lines.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-native-reassign.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-negated-condition.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-negated-in-lhs.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-nested-ternary.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-new-require.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-new-symbol.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-new.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-octal-escape.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-octal.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-path-concat.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-process-env.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-process-exit.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-restricted-globals.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-restricted-syntax.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-self-compare.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-spaced-func.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-sparse-arrays.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-sync.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-template-curly-in-string.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-ternary.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-undefined.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-underscore-dangle.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-unused-private-class-members.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-useless-catch.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-void.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/no-with.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/object-property-newline.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/one-var-declaration-per-line.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/prefer-reflect.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/require-jsdoc.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/require-yield.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/rest-spread-spacing.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/sort-imports.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/sort-vars.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/template-tag-spacing.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/unicode-bom.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/utils/keywords.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/utils/patterns/letters.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/utils/unicode/index.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/utils/unicode/is-combining-character.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/utils/unicode/is-emoji-modifier.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/utils/unicode/is-regional-indicator-symbol.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/utils/unicode/is-surrogate-pair.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/vars-on-top.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/wrap-regex.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "rules/yield-star-spacing.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "shared/logging.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "shared/types.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "source-code/index.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "source-code/token-store/cursor.js",
+          "annotated": 0,
+          "unannotated": 0
+        },
+        {
+          "file": "source-code/token-store/utils.js",
+          "annotated": 0,
+          "unannotated": 0
+        }
+      ]
+    },
+    "complexity": {
+      "total": 5184,
+      "avg": 13.535248041775457,
+      "max": 213,
+      "topFiles": [
+        {
+          "file": "rules/utils/ast-utils.js",
+          "loc": 2014,
+          "cyclomatic": 213
+        },
+        {
+          "file": "linter/code-path-analysis/code-path-analyzer.js",
+          "loc": 726,
+          "cyclomatic": 139
+        },
+        {
+          "file": "linter/linter.js",
+          "loc": 1825,
+          "cyclomatic": 138
+        },
+        {
+          "file": "rules/no-extra-parens.js",
+          "loc": 1124,
+          "cyclomatic": 134
+        },
+        {
+          "file": "rules/indent.js",
+          "loc": 1552,
+          "cyclomatic": 123
+        },
+        {
+          "file": "rules/indent-legacy.js",
+          "loc": 954,
+          "cyclomatic": 112
+        },
+        {
+          "file": "rules/no-constant-binary-expression.js",
+          "loc": 463,
+          "cyclomatic": 95
+        },
+        {
+          "file": "linter/code-path-analysis/code-path-state.js",
+          "loc": 2015,
+          "cyclomatic": 94
+        },
+        {
+          "file": "source-code/source-code.js",
+          "loc": 884,
+          "cyclomatic": 88
+        },
+        {
+          "file": "eslint/flat-eslint.js",
+          "loc": 967,
+          "cyclomatic": 83
+        }
+      ]
+    },
+    "coupling": {
+      "modules": 389,
+      "edges": 638,
+      "density": 0.004227069143720351,
+      "avgFanOut": 1.6401028277634961,
+      "maxFanOut": 292,
+      "hubs": [
+        {
+          "module": "rules/index.js",
+          "fanOut": 292,
+          "fanIn": 6
+        },
+        {
+          "module": "linter/linter.js",
+          "fanOut": 20,
+          "fanIn": 1
+        },
+        {
+          "module": "cli-engine/cli-engine.js",
+          "fanOut": 8,
+          "fanIn": 2
+        },
+        {
+          "module": "rule-tester/flat-rule-tester.js",
+          "fanOut": 8,
+          "fanIn": 1
+        },
+        {
+          "module": "source-code/token-store/cursors.js",
+          "fanOut": 7,
+          "fanIn": 1
+        },
+        {
+          "module": "cli.js",
+          "fanOut": 6,
+          "fanIn": 0
+        },
+        {
+          "module": "eslint/flat-eslint.js",
+          "fanOut": 6,
+          "fanIn": 4
+        },
+        {
+          "module": "rule-tester/rule-tester.js",
+          "fanOut": 6,
+          "fanIn": 1
+        },
+        {
+          "module": "source-code/source-code.js",
+          "fanOut": 6,
+          "fanIn": 1
+        },
+        {
+          "module": "api.js",
+          "fanOut": 5,
+          "fanIn": 0
+        }
+      ],
+      "cycles": 0,
+      "nodesInCycles": 0
+    },
+    "tests": {
+      "testFiles": 0,
+      "paritySuites": 0
+    }
+  },
+  "coupling": {
+    "modules": 389,
+    "edges": 638,
+    "density": 0.004227069143720351,
+    "avgFanOut": 1.6401028277634961,
+    "maxFanOut": 292,
+    "hubs": [
+      {
+        "module": "rules/index.js",
+        "fanOut": 292,
+        "fanIn": 6
+      },
+      {
+        "module": "linter/linter.js",
+        "fanOut": 20,
+        "fanIn": 1
+      },
+      {
+        "module": "cli-engine/cli-engine.js",
+        "fanOut": 8,
+        "fanIn": 2
+      },
+      {
+        "module": "rule-tester/flat-rule-tester.js",
+        "fanOut": 8,
+        "fanIn": 1
+      },
+      {
+        "module": "source-code/token-store/cursors.js",
+        "fanOut": 7,
+        "fanIn": 1
+      },
+      {
+        "module": "cli.js",
+        "fanOut": 6,
+        "fanIn": 0
+      },
+      {
+        "module": "eslint/flat-eslint.js",
+        "fanOut": 6,
+        "fanIn": 4
+      },
+      {
+        "module": "rule-tester/rule-tester.js",
+        "fanOut": 6,
+        "fanIn": 1
+      },
+      {
+        "module": "source-code/source-code.js",
+        "fanOut": 6,
+        "fanIn": 1
+      },
+      {
+        "module": "api.js",
+        "fanOut": 5,
+        "fanIn": 0
+      }
+    ],
+    "cycles": 0,
+    "nodesInCycles": 0
+  },
+  "gaps": [
+    {
+      "category": "types",
+      "severity": "high",
+      "detail": "2252/2254 declaration sites untyped (0% coverage)"
+    },
+    {
+      "category": "tests",
+      "severity": "high",
+      "detail": "no test files / parity suites"
+    }
+  ],
+  "actions": [
+    {
+      "rank": 1,
+      "stage": "types",
+      "kind": "lift",
+      "target": "rules/utils/ast-utils.js",
+      "reason": "147 untyped declaration sites"
+    },
+    {
+      "rank": 2,
+      "stage": "types",
+      "kind": "lift",
+      "target": "linter/linter.js",
+      "reason": "115 untyped declaration sites"
+    },
+    {
+      "rank": 3,
+      "stage": "types",
+      "kind": "lift",
+      "target": "rule-tester/rule-tester.js",
+      "reason": "60 untyped declaration sites"
+    },
+    {
+      "rank": 4,
+      "stage": "structure",
+      "kind": "simplify",
+      "target": "rules/utils/ast-utils.js",
+      "reason": "cyclomatic complexity 213"
+    },
+    {
+      "rank": 5,
+      "stage": "structure",
+      "kind": "simplify",
+      "target": "linter/code-path-analysis/code-path-analyzer.js",
+      "reason": "cyclomatic complexity 139"
+    },
+    {
+      "rank": 6,
+      "stage": "decouple",
+      "kind": "hub",
+      "target": "rules/index.js",
+      "reason": "fan-out 292"
+    },
+    {
+      "rank": 7,
+      "stage": "decouple",
+      "kind": "hub",
+      "target": "linter/linter.js",
+      "reason": "fan-out 20"
+    },
+    {
+      "rank": 8,
+      "stage": "decouple",
+      "kind": "hub",
+      "target": "cli-engine/cli-engine.js",
+      "reason": "fan-out 8"
+    },
+    {
+      "rank": 9,
+      "stage": "tests",
+      "kind": "add-test",
+      "target": "parity",
+      "reason": "no parity suites; add one per ported library"
+    },
+    {
+      "rank": 10,
+      "stage": "port",
+      "kind": "port",
+      "target": "esquery",
+      "reason": "15022 LOC leaf; no Go counterpart"
+    },
+    {
+      "rank": 11,
+      "stage": "port",
+      "kind": "port",
+      "target": "acorn",
+      "reason": "6436 LOC leaf; no Go counterpart"
+    },
+    {
+      "rank": 12,
+      "stage": "port",
+      "kind": "port",
+      "target": "@eslint-community/regexpp",
+      "reason": "4184 LOC leaf; no Go counterpart"
+    }
+  ],
+  "portBacklog": [
+    {
+      "name": "esquery",
+      "goModule": "github.com/jclyons52/esquery-go",
+      "loc": 15022
+    },
+    {
+      "name": "acorn",
+      "goModule": "github.com/jclyons52/acorn-go",
+      "loc": 6436
+    },
+    {
+      "name": "@eslint-community/regexpp",
+      "goModule": "github.com/jclyons52/eslint-community-regexpp-go",
+      "loc": 4184
+    },
+    {
+      "name": "argparse",
+      "goModule": "github.com/jclyons52/argparse-go",
+      "loc": 3691
+    },
+    {
+      "name": "uri-js",
+      "goModule": "github.com/jclyons52/uri-js-go",
+      "loc": 2390
+    },
+    {
+      "name": "type-fest",
+      "goModule": "github.com/jclyons52/type-fest-go",
+      "loc": 2311
+    },
+    {
+      "name": "eslint-scope",
+      "goModule": "github.com/jclyons52/eslint-scope-go",
+      "loc": 1931
+    },
+    {
+      "name": "lodash.merge",
+      "goModule": "github.com/jclyons52/lodash-merge-go",
+      "loc": 1819
+    },
+    {
+      "name": "prelude-ls",
+      "goModule": "github.com/jclyons52/prelude-ls-go",
+      "loc": 1339
+    },
+    {
+      "name": "ignore",
+      "goModule": "github.com/jclyons52/ignore-go",
+      "loc": 1102
+    },
+    {
+      "name": "espree",
+      "goModule": "github.com/jclyons52/espree-go",
+      "loc": 783
+    },
+    {
+      "name": "estraverse",
+      "goModule": "github.com/jclyons52/estraverse-go",
+      "loc": 756
+    },
+    {
+      "name": "debug",
+      "goModule": "github.com/jclyons52/debug-go",
+      "loc": 735
+    },
+    {
+      "name": "@ungap/structured-clone",
+      "goModule": "github.com/jclyons52/ungap-structured-clone-go",
+      "loc": 609
+    },
+    {
+      "name": "esutils",
+      "goModule": "github.com/jclyons52/esutils-go",
+      "loc": 409
+    },
+    {
+      "name": "@humanwhocodes/object-schema",
+      "goModule": "github.com/jclyons52/humanwhocodes-object-schema-go",
+      "loc": 395
+    },
+    {
+      "name": "flatted",
+      "goModule": "github.com/jclyons52/flatted-go",
+      "loc": 374
+    },
+    {
+      "name": "json-schema-traverse",
+      "goModule": "github.com/jclyons52/json-schema-traverse-go",
+      "loc": 331
+    },
+    {
+      "name": "isexe",
+      "goModule": "github.com/jclyons52/isexe-go",
+      "loc": 318
+    },
+    {
+      "name": "@nodelib/fs.stat",
+      "goModule": "github.com/jclyons52/nodelib-fs-stat-go",
+      "loc": 172
+    },
+    {
+      "name": "color-name",
+      "goModule": "github.com/jclyons52/color-name-go",
+      "loc": 151
+    }
+  ]
+}
