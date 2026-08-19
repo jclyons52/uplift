@@ -44,6 +44,27 @@ func TestDescribe(t *testing.T) {
 	}
 }
 
+func TestPortQueueOf(t *testing.T) {
+	repos := []Repo{
+		{Name: "foo", Module: "github.com/jclyons52/foo-go", Dir: "foo", Exports: []string{"A", "B"}},
+		{Name: "bar", Module: "github.com/jclyons52/bar-go", Dir: "bar"},
+	}
+	pq := PortQueueOf(repos, Options{})
+	if pq.Schema != "port-queue/v1" {
+		t.Errorf("schema = %q", pq.Schema)
+	}
+	if len(pq.Repos) != 2 {
+		t.Fatalf("repos = %d, want 2", len(pq.Repos))
+	}
+	if len(pq.Repos[0].Units) != 2 || pq.Repos[0].Units[0].Name != "A" || pq.Repos[0].Units[0].Status != "pending" {
+		t.Errorf("foo units wrong: %+v", pq.Repos[0].Units)
+	}
+	// a repo with no discovered exports still gets a sentinel unit
+	if len(pq.Repos[1].Units) != 1 || pq.Repos[1].Units[0].Name != "$entry" {
+		t.Errorf("bar units wrong: %+v", pq.Repos[1].Units)
+	}
+}
+
 func containsStr(s, sub string) bool {
 	return len(s) >= len(sub) && (s == sub || containsIndex(s, sub) >= 0)
 }

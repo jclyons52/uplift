@@ -21,6 +21,7 @@ func runScaffold(args []string) {
 	prefix := fs.String("module-prefix", "github.com/jclyons52", "Go module prefix for the new repos")
 	vendor := fs.Bool("vendor", false, "copy the original node_modules source into <repo>/original/")
 	dryRun := fs.Bool("dry-run", false, "print the plan (repos to create) without writing")
+	queueFlag := fs.String("queue", "", "write the machine-readable port work queue (JSON, schema port-queue/v1) to this file")
 	onlyFlag := fs.String("only", "", "comma-separated package names to scaffold (default: all that are 'own repo')")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: ts2go scaffold <dir> --out <reposdir>\n\ncreates a standalone library repo for each external dep the analysis recommends\nseparating (a leaf library 'port as own repo'). Lay down: go.mod, a compiling\npackage stub, a parity-test stub, README, and optionally the original source.\n\nflags:\n")
@@ -61,6 +62,22 @@ func runScaffold(args []string) {
 	}
 	repos := scaffold.Plan(res, opts)
 
+	if *queueFlag != "" {
+		pq := scaffold.PortQueueOf(repos, opts)
+		f, err := os.Create(*queueFlag)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		if err := scaffold.WriteQueueJSON(f, pq); err != nil {
+			f.Close()
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		f.Close()
+		fmt.Fprintf(os.Stderr, "wrote port queue %s (%d repos)\n", *queueFlag, len(pq.Repos))
+	}
+
 	if *dryRun {
 		fmt.Printf("would scaffold %d repo(s) under %s:\n\n", len(repos), *outFlag)
 		for _, r := range repos {
@@ -95,7 +112,8 @@ func apiShort(exports []string) string {
 // reorderScaffoldArgs lets flags appear after the positional dir. Only
 // --out, --module-prefix and --only consume a following value token.
 func reorderScaffoldArgs(args []string) []string {
-	valueFlags := map[string]bool{"--out": true, "-out": true, "--module-prefix": true, "-module-prefix": true, "--only": true, "-only": true}
+	valueFlags := map[string]bool{"--out": true, "-out": true, "--module-prefix": true,
+		"-module-prefix": true, "--only": true, "-only": true, "--queue": true, "-queue": true}
 	var flags, pos []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
