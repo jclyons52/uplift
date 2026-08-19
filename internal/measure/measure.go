@@ -42,9 +42,17 @@ type Totals struct {
 // annotation (params, returns, variables). For JS this is ~0 before lift and
 // rises after, making it the "types filled" progress signal.
 type TypeCoverage struct {
-	Annotated   int     `json:"annotated"`
-	Unannotated int     `json:"unannotated"`
-	Ratio       float64 `json:"ratio"`
+	Annotated   int         `json:"annotated"`
+	Unannotated int         `json:"unannotated"`
+	Ratio       float64     `json:"ratio"`
+	ByFile      []FileSites `json:"byFile,omitempty"` // per-file, worst-first
+}
+
+// FileSites is one file's annotation counts.
+type FileSites struct {
+	File        string `json:"file"`
+	Annotated   int    `json:"annotated"`
+	Unannotated int    `json:"unannotated"`
 }
 
 // complexityReport aggregates per-file cyclomatic complexity.
@@ -127,10 +135,18 @@ func Analyze(root string) (*Metrics, error) {
 		cp.Top = append(cp.Top, FileScore{File: rel, Loc: lines, Cyclomatic: cyc})
 		tc.Annotated += ann
 		tc.Unannotated += unann
+		tc.ByFile = append(tc.ByFile, FileSites{File: rel, Annotated: ann, Unannotated: unann})
 	}
 	if tc.Annotated+tc.Unannotated > 0 {
 		tc.Ratio = float64(tc.Annotated) / float64(tc.Annotated+tc.Unannotated)
 	}
+	// worst-first for the "lift these modules next" ranking
+	sort.Slice(tc.ByFile, func(i, j int) bool {
+		if tc.ByFile[i].Unannotated != tc.ByFile[j].Unannotated {
+			return tc.ByFile[i].Unannotated > tc.ByFile[j].Unannotated
+		}
+		return tc.ByFile[i].File < tc.ByFile[j].File
+	})
 	if m.Totals.Files > 0 {
 		cp.Avg = float64(cp.Total) / float64(m.Totals.Files)
 	}
