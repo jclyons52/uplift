@@ -34,6 +34,10 @@ jobs:
         working-directory: uplift
         run: go build ./...
 
+      - name: Build oracle binary to /tmp/uplift (parity tests expect it there)
+        working-directory: uplift
+        run: go build -o /tmp/uplift ./cmd/uplift
+
       - name: Vet
         working-directory: uplift
         run: go vet ./...
