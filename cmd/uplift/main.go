@@ -48,6 +48,9 @@ func main() {
 		case "registry": // `uplift registry [dir]` — npm→Go counterpart registry
 			runRegistry(args[1:])
 			return
+		case "spec": // `uplift spec <file.d.ts|dir>` — exported API contract (port-to-spec)
+			runSpec(args[1:])
+			return
 		case "measure": // `uplift measure <dir>` — codebase quality metric report
 			runMeasure(args[1:])
 			return
