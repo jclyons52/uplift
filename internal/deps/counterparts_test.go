@@ -9,7 +9,7 @@ func TestCounterpartsLoaded(t *testing.T) {
 	for name, want := range map[string]CounterpartVerdict{
 		"js-yaml":    UseExisting,
 		"chalk":      UseExisting,
-		"strip-ansi": UseStdlib,
+		"strip-ansi": InlineIt,
 		"espree":     PortIt,
 	} {
 		c, ok := counterparts[name]

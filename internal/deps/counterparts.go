@@ -24,7 +24,8 @@ type CounterpartVerdict string
 
 const (
 	UseExisting CounterpartVerdict = "use_existing" // adopt a known Go module
-	UseStdlib   CounterpartVerdict = "stdlib"       // Go stdlib covers it
+	UseStdlib   CounterpartVerdict = "stdlib"       // Go stdlib covers it with a direct call
+	InlineIt    CounterpartVerdict = "inline"       // do NOT split into a repo; inline the canonical shim (see InlineShims)
 	PortIt      CounterpartVerdict = "port"         // port it; no good equivalent
 	PortPartial CounterpartVerdict = "port_partial" // partial equivalent; port the gap
 )
@@ -92,6 +93,9 @@ func RenderCounterparts(reg map[string]Counterpart, referenced map[string]bool) 
 		goCol := c.Go
 		if c.Verdict == UseStdlib {
 			goCol = "(stdlib)"
+		}
+		if c.Verdict == InlineIt {
+			goCol = "(inline)"
 		}
 		if c.Verdict == PortIt || c.Verdict == PortPartial {
 			goCol = "(port)"

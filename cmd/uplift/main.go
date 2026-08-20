@@ -51,6 +51,9 @@ func main() {
 		case "spec": // `uplift spec <file.d.ts|dir>` — exported API contract (port-to-spec)
 			runSpec(args[1:])
 			return
+		case "shim": // `uplift shim [name]` — inline tiny leave shims (verdict 'inline')
+			runShim(args[1:])
+			return
 		case "measure": // `uplift measure <dir>` — codebase quality metric report
 			runMeasure(args[1:])
 			return
