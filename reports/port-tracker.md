@@ -22,7 +22,7 @@ before marking done. Last updated: 2026-08-21.
 | 7 | ignore | 1102 | ignore-go | DONE | e69deb4 | |
 | 8 | argparse | 3691 | argparse-go | DONE | 2ed8a5b | |
 | 9 | color-name | 151 | color-name-go | DONE | 03101bb | 148 entries, 0 mismatches |
-| 10 | flatted | 374 | flatted-go | NEXT | — | quick win; eslint-go oracle already vendors it |
+| 10 | flatted | 374 | flatted-go | DONE | 4b87945 | 28/28 round-trip parity, 13/13 byte-parity; vendored 3.4.4 |
 | 11 | @humanwhocodes/object-schema | 395 | humanwhocodes-object-schema-go | DONE | 068e5f6 | |
 | 12 | @ungap/structured-clone | 609 | ungap-structured-clone-go | DONE | 81a1c85 | round-trip 29/0, structural 15/0 |
 | 13 | @nodelib/fs.stat | 172 | nodelib-fs-stat-go | DONE | 835d3c9 | |
