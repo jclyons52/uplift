@@ -6,6 +6,7 @@ before marking done. Last updated: 2026-08-21.
 
 ## Legend
 - `DONE` — port committed, parity green, repo initialized (code + tests + README)
+- `NO-OP` — no runtime surface to port (e.g. type-only package); verified, not a port
 - `NEXT` — recommended order for the next session(s)
 - `TODO` — not started
 
@@ -18,7 +19,7 @@ before marking done. Last updated: 2026-08-21.
 | 3 | debug | 735 | debug-go | DONE | 94dd949 | namespace-matching core only |
 | 4 | espree | 783 | espree-go | DONE | e23fc73 | 3 gates: parse, pos+tokens, tokenize; 27 sources |
 | 5 | acorn | 6436 | acorn-go | DONE | 6cb09e7 | 91/91 JS-oracle cases incl. dynamic import() + import.meta |
-| 6 | type-fest | 2311 | — | TODO | — | type-only package; verify runtime surface is a no-op before porting |
+| 6 | type-fest | 2311 | — | NO-OP | — | type-only: 0 `.js` files, no `main`, all 39 files `.d.ts` (verified from real 0.20.2 tarball); TS erases to zero runtime → not a port |
 | 7 | ignore | 1102 | ignore-go | DONE | e69deb4 | |
 | 8 | argparse | 3691 | argparse-go | DONE | 2ed8a5b | |
 | 9 | color-name | 151 | color-name-go | DONE | 03101bb | 148 entries, 0 mismatches |
