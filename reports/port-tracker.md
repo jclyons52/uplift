@@ -32,7 +32,7 @@ before marking done. Last updated: 2026-08-24.
 | 16 | estraverse | 756 | estraverse-go | DONE | 9caee81 | |
 | 17 | lodash.merge | 1819 | lodash-merge-go | DONE | 8dfcab6 | 42/42 byte-parity; string/array-like sources, length resize, __proto__ primitives, args/typed/buffer |
 | 18 | esquery | 15022 | — | TODO | — | the big one: selector engine for rules; last port |
-| 19 | @eslint-community/regexpp | 4184 | — | TODO | — | core to ESLint regex rules |
+| 19 | @eslint-community/regexpp | 4184 | eslint-community-regexpp | DONE | 88c4da2 | 62/62 byte-parity incl. named groups, v-mode, modifier groups; \p + non-ASCII excluded (README) |
 | 20 | isexe | 318 | isexe-go | DONE | 395e9b1 | |
 | 21 | esutils | 409 | esutils-go | DONE | c9662c6 | |
 
