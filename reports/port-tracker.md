@@ -2,7 +2,7 @@
 
 Single source of truth for the JS→Go port backlog. Update the status + commit
 hash as each leaf lands. Verify claims with `go test ./...` in the port dir
-before marking done. Last updated: 2026-08-21.
+before marking done. Last updated: 2026-08-24.
 
 ## Legend
 - `DONE` — port committed, parity green, repo initialized (code + tests + README)
@@ -30,7 +30,7 @@ before marking done. Last updated: 2026-08-21.
 | 14 | prelude-ls | 1339 | prelude-ls-go | DONE | e0e686b | |
 | 15 | eslint-scope | 1931 | eslint-scope-go | DONE | 53e9b23 | |
 | 16 | estraverse | 756 | estraverse-go | DONE | 9caee81 | |
-| 17 | lodash.merge | 1819 | — | TODO | — | |
+| 17 | lodash.merge | 1819 | lodash-merge-go | DONE | 8dfcab6 | 42/42 byte-parity; string/array-like sources, length resize, __proto__ primitives, args/typed/buffer |
 | 18 | esquery | 15022 | — | TODO | — | the big one: selector engine for rules; last port |
 | 19 | @eslint-community/regexpp | 4184 | — | TODO | — | core to ESLint regex rules |
 | 20 | isexe | 318 | isexe-go | DONE | 395e9b1 | |
