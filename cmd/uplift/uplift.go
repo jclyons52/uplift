@@ -53,23 +53,4 @@ func runUplift(args []string) {
 	fmt.Print(rep.Render())
 }
 
-func reorderUpliftArgs(args []string) []string {
-	var flags, pos []string
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		if a == "--json" || a == "-json" {
-			flags = append(flags, a)
-			if i+1 < len(args) && len(args[i+1]) > 0 && args[i+1][0] != '-' {
-				flags = append(flags, args[i+1])
-				i++
-			}
-			continue
-		}
-		if len(a) > 0 && a[0] == '-' {
-			flags = append(flags, a)
-			continue
-		}
-		pos = append(pos, a)
-	}
-	return append(flags, pos...)
-}
+// reorderUpliftArgs lives in args.go (shared flag-reorder helper).

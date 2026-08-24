@@ -405,27 +405,4 @@ func writeReport(path, text string) {
 	fmt.Fprintf(os.Stderr, "wrote report %s\n", path)
 }
 
-// reorderTranspileArgs lets flags appear after positional file/dir args
-// (`uplift ts2go testdata/bank.ts -dry-run`), matching the other subcommands.
-// Value-taking flags (-o, -package, -report) pull their value along.
-func reorderTranspileArgs(args []string) []string {
-	valueFlags := map[string]bool{"-o": true, "--o": true, "-package": true, "--package": true, "-report": true, "--report": true}
-	var flags, pos []string
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		if valueFlags[a] {
-			flags = append(flags, a)
-			if i+1 < len(args) {
-				flags = append(flags, args[i+1])
-				i++
-			}
-			continue
-		}
-		if strings.HasPrefix(a, "-") {
-			flags = append(flags, a)
-			continue
-		}
-		pos = append(pos, a)
-	}
-	return append(flags, pos...)
-}
+// reorderTranspileArgs lives in args.go (shared flag-reorder helper).

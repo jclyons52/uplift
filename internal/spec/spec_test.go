@@ -22,6 +22,64 @@ func extractDT(t *testing.T, body string) *Spec {
 	return Extract(p, sf, "index")
 }
 
+func TestExtractBundledModule(t *testing.T) {
+	// dts-bundle output wraps the entire API surface in a single ambient
+	// `declare module "..."` block (regexpp's index.d.ts, @types/eslint).
+	// The wrapper is not marked exported; its body carries the exports.
+	s := extractDT(t, `declare module "escaped-syntax" {
+  import * as AST from "escaped-syntax/ast";
+  export class RegExpParser {
+    parsePattern(source: string, options?: { u?: boolean }): AST.Pattern;
+  }
+  export function parseRegExpLiteral(source: string | RegExp, options?: { u?: boolean }): AST.RegExpLiteral;
+  type Options = { u?: boolean };
+  export type RegExpParserOptions = Options;
+  export const latestEcmaVersion = 2025;
+}`)
+	if len(s.Entries) != 1 {
+		t.Fatalf("want 1 container entry, got %d", len(s.Entries))
+	}
+	e := s.Entries[0]
+	if e.Kind != "namespace" || e.Name != "escaped-syntax" {
+		t.Fatalf("want namespace escaped-syntax, got %s %s", e.Kind, e.Name)
+	}
+	var sawParser, sawFn bool
+	for _, m := range e.Members {
+		if m.Kind == "class" && m.Name == "RegExpParser" {
+			sawParser = true
+			var hasParse bool
+			for _, cm := range m.Members {
+				if cm.Kind == "method" && cm.Name == "parsePattern" {
+					hasParse = true
+					if !strings.Contains(cm.Signature, "AST.Pattern") {
+						t.Fatalf("parsePattern signature = %q", cm.Signature)
+					}
+				}
+			}
+			if !hasParse {
+				t.Fatalf("RegExpParser missing parsePattern; members=%+v", m.Members)
+			}
+		}
+		if m.Kind == "function" && m.Name == "parseRegExpLiteral" {
+			sawFn = true
+		}
+	}
+	if !sawParser || !sawFn {
+		t.Fatalf("missing class/fn members; members=%+v", e.Members)
+	}
+	// Untyped consts (e.g. `export const latestEcmaVersion = 2025`) must not
+	// panic the extractor (TypeNode returns a zero node + ok=false).
+	var sawConst bool
+	for _, m := range e.Members {
+		if m.Kind == "const" && m.Name == "latestEcmaVersion" {
+			sawConst = true
+		}
+	}
+	if !sawConst {
+		t.Fatalf("missing const member; members=%+v", e.Members)
+	}
+}
+
 func TestExtractClass(t *testing.T) {
 	s := extractDT(t, `export declare class Linter {
     constructor(config?: Linter.Config);

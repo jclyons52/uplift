@@ -29,7 +29,7 @@ func runSpec(args []string) {
 			"ingests TypeScript declaration files and emits the exported API contract (spec/v1).\n\nflags:\n")
 		fs.PrintDefaults()
 	}
-	fs.Parse(args)
+	fs.Parse(reorderArgs(args, map[string]bool{"-json": true, "-package": true}, nil))
 	inputs := fs.Args()
 	if len(inputs) == 0 {
 		fs.Usage()

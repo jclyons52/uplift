@@ -71,6 +71,18 @@ func Extract(p *tsmorph.Project, sf *tsmorph.SourceFile, source string) *Spec {
 	s := &Spec{Schema: Schema, File: source}
 	src := sf.Text()
 	for _, stmt := range sf.Statements() {
+		if stmt.IsModuleDeclaration() {
+			// Ambient module declarations — dts-bundle output especially —
+			// wrap the whole public surface in `declare module "..." { ... }`
+			// and are NOT themselves marked exported. Surface the module
+			// body as a container entry so the contract isn't empty.
+			md, _ := stmt.AsModuleDeclaration()
+			e := namespaceEntry(md, source, src)
+			e.Name = strings.Trim(e.Name, `"`)
+			e.Text = "module " + e.Name
+			s.Entries = append(s.Entries, *e)
+			continue
+		}
 		if !exportVisible(stmt) {
 			continue
 		}
@@ -185,8 +197,11 @@ func variableEntry(vs tsmorph.VariableStatement, source, src string) *Entry {
 		kind = "const"
 	}
 	for _, d := range vs.Declarations() {
-		ty, _ := d.TypeNode()
-		e := &Entry{Kind: kind, Name: d.Name(), TypeText: strings.TrimSpace(sliceText(ty.ASTNode(), src)), Source: source, Exported: vs.IsExported(), Default: vs.IsDefaultExport()}
+		ty := ""
+		if tn, ok := d.TypeNode(); ok {
+			ty = strings.TrimSpace(sliceText(tn.ASTNode(), src))
+		}
+		e := &Entry{Kind: kind, Name: d.Name(), TypeText: ty, Source: source, Exported: vs.IsExported(), Default: vs.IsDefaultExport()}
 		e.Text = kind + " " + e.Name + ":" + e.TypeText
 		return e
 	}
@@ -273,8 +288,10 @@ func memberOf(n tsmorph.Node, src string) []Member {
 		vs, _ := n.AsVariableStatement()
 		var out []Member
 		for _, d := range vs.Declarations() {
-			ty, _ := d.TypeNode()
-			t := strings.TrimSpace(sliceText(ty.ASTNode(), src))
+			t := ""
+			if ty, ok := d.TypeNode(); ok {
+				t = strings.TrimSpace(sliceText(ty.ASTNode(), src))
+			}
 			out = append(out, Member{Kind: "const", Name: d.Name(), Signature: "const " + d.Name() + ":" + t, Type: t})
 		}
 		return out

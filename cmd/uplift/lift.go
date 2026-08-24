@@ -25,7 +25,7 @@ func runLift(args []string) {
 		fmt.Fprintf(os.Stderr, "usage: uplift lift [flags] <file.js|dir>...\n\nlifts JavaScript (JSDoc optional) to annotated TypeScript.\n\nflags:\n")
 		fs.PrintDefaults()
 	}
-	fs.Parse(args)
+	fs.Parse(reorderArgs(args, map[string]bool{"-o": true}, nil))
 	inputs := fs.Args()
 	if len(inputs) == 0 {
 		fs.Usage()
