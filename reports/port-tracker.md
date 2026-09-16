@@ -2,7 +2,11 @@
 
 Single source of truth for the JS→Go port backlog. Update the status + commit
 hash as each leaf lands. Verify claims with `go test ./...` in the port dir
-before marking done. Last updated: 2026-08-24.
+before marking done. Last updated: 2026-09-16.
+
+**All 21 leaves are ported** (20 DONE, 1 NO-OP — esquery, the last TODO, landed
+2026-09-16). Next work is composition (eslint-go Linter + stylish reporter,
+LIF-8) rather than more leaves.
 
 ## Legend
 - `DONE` — port committed, parity green, repo initialized (code + tests + README)
@@ -31,7 +35,7 @@ before marking done. Last updated: 2026-08-24.
 | 15 | eslint-scope | 1931 | eslint-scope-go | DONE | 53e9b23 | |
 | 16 | estraverse | 756 | estraverse-go | DONE | 9caee81 | |
 | 17 | lodash.merge | 1819 | lodash-merge-go | DONE | 8dfcab6 | 42/42 byte-parity; string/array-like sources, length resize, __proto__ primitives, args/typed/buffer |
-| 18 | esquery | 15022 | — | TODO | — | the big one: selector engine for rules; last port |
+| 18 | esquery | 15022 | esquery-go | DONE | 4721eef | 1850 parse + 29874 query + 6786 matches (94024 node results) cases, 0 mismatches; reuses estraverse-go (fixed its parent-arg bug: 8421809) |
 | 19 | @eslint-community/regexpp | 4184 | eslint-community-regexpp | DONE | 88c4da2 | 62/62 byte-parity incl. named groups, v-mode, modifier groups; \p + non-ASCII excluded (README) |
 | 20 | isexe | 318 | isexe-go | DONE | 395e9b1 | |
 | 21 | esutils | 409 | esutils-go | DONE | c9662c6 | |
