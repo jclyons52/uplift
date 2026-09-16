@@ -64,7 +64,10 @@ func Plan(res *deps.Result, opts Options) []Repo {
 		} else if !WantsOwnRepo(res, name) {
 			continue
 		}
-		dir := sanitizeDir(name)
+		// Directory follows the module's base name (`<pkg>-go`), which is the
+		// convention every port repo uses: the scaffold used to create `<pkg>`
+		// while writing a `...-go` module, so each port needed a manual rename.
+		dir := sanitizeDir(name) + "-go"
 		src := ""
 		if opts.SourceRoot != "" {
 			src = filepath.Join(opts.SourceRoot, name)
@@ -72,7 +75,7 @@ func Plan(res *deps.Result, opts Options) []Repo {
 		out = append(out, Repo{
 			Name:      name,
 			Dir:       dir,
-			Module:    strings.TrimSuffix(opts.ModulePrefix, "/") + "/" + dir + "-go",
+			Module:    strings.TrimSuffix(opts.ModulePrefix, "/") + "/" + dir,
 			Package:   sanitizePkg(name),
 			Loc:       n.Loc,
 			Exports:   n.Exports,
