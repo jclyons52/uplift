@@ -43,8 +43,11 @@ jobs:
         run: go vet ./...
 
       - name: Test
+        # -short skips the JS-oracle parity tests, which need a local
+        # /tmp/eslint-inspect checkout of ESLint fixtures (not present in a
+        # fresh CI clone). Those run in the full local dev environment.
         working-directory: uplift
-        run: go test ./...
+        run: go test -short ./...
 
   # Optional separate job — run strictly when workflow files change.
   # Left as a scaffold; uplift's real "parity gate" runs inside the test suite
