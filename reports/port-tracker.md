@@ -2,11 +2,18 @@
 
 Single source of truth for the JS→Go port backlog. Update the status + commit
 hash as each leaf lands. Verify claims with `go test ./...` in the port dir
-before marking done. Last updated: 2026-09-16.
+before marking done. Last updated: 2026-09-24.
 
-**All 21 leaves are ported** (20 DONE, 1 NO-OP — esquery, the last TODO, landed
-2026-09-16). Next work is composition (eslint-go Linter + stylish reporter,
-LIF-8) rather than more leaves.
+**Backlog closed, family published.** All 21 leaves are ported (20 DONE, 1
+NO-OP), and the composition target is finished: `eslint-go` runs 46 rules over
+2,437 oracle cases with 0 mismatches and its CLI matches eslint 8.57 byte for
+byte across 14 e2e scenarios (verified in CI on GitHub Actions). Every repo in
+the family is public with a tagged release — see `go-ports` for the index:
+https://jclyons52.github.io/go-ports/
+
+Remaining known gaps are documented per repo (README "Known divergences"), the
+largest being `parserOptions.ecmaVersion` not being enforced by the parser and
+inline eslint directives (`/* eslint-disable */`) not being honoured.
 
 ## Legend
 - `DONE` — port committed, parity green, repo initialized (code + tests + README)
@@ -41,9 +48,21 @@ LIF-8) rather than more leaves.
 | 21 | esutils | 409 | esutils-go | DONE | c9662c6 | |
 
 ## Composition target (not a leaf)
-- **eslint-go** — minimal Linter core running real rules (68b7ca4, 19 cases 0
-  mismatches). This is where the leaves get composed; the stylish reporter is
-  blocked on chalk/sinon/proxyquire shims (see eslint-baseline.md).
+- **eslint-go** — the Linter is complete and published (v0.1.0): parses with
+  espree-go in-process, scope analysis from eslint-scope-go, 46 rules with
+  2,437 oracle cases and 0 mismatches, formatters (stylish/json/compact/unix),
+  the CLI (--fix, --quiet, globs, stdin, --stdin-filename, --max-warnings), and
+  suggestions in the message shape. `scripts/e2e.sh` compares it against the real
+  eslint 8.57 CLI: 14/14 scenarios byte-identical, and CI runs the same gates
+  (npm ci the oracle, then the suite and e2e).
+- Published family: eslint-go, espree-go, esquery-go, acorn-go (v0.2.0),
+  eslint-scope-go, estraverse-go, esutils-go, eslint-visitor-keys-go,
+  eslint-community-regexpp, prelude-ls-go, argparse-go, ignore-go, uri-js-go,
+  lodash-merge-go, json-schema-traverse-go, flatted-go, debug-go, color-name-go,
+  isexe-go, nodelib-fs-stat-go, ungap-structured-clone-go,
+  humanwhocodes-object-schema-go, ts-go-morph, uplift (v0.2.0), go-gqlcodegen,
+  go-typewryter, go-ports. Local development across them uses the parent
+  `go.work`; each repo's go.mod references tagged releases so it stands alone.
 
 ## Session start protocol
 1. Read this file.
