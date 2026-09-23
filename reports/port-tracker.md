@@ -6,7 +6,7 @@ before marking done. Last updated: 2026-09-24.
 
 **Backlog closed, family published.** All 21 leaves are ported (20 DONE, 1
 NO-OP), and the composition target is finished: `eslint-go` runs 46 rules over
-2,432 oracle cases with 0 mismatches and its CLI matches eslint 8.57 byte for
+2,459 oracle cases with 0 mismatches and its CLI matches eslint 8.57 byte for
 byte across 14 e2e scenarios (verified in CI on GitHub Actions). Every repo in
 the family is public with a tagged release — see `go-ports` for the index:
 https://jclyons52.github.io/go-ports/
@@ -50,7 +50,7 @@ inline eslint directives (`/* eslint-disable */`) not being honoured.
 ## Composition target (not a leaf)
 - **eslint-go** — the Linter is complete and published (v0.1.0): parses with
   espree-go in-process, scope analysis from eslint-scope-go, 46 rules with
-  2,432 oracle cases and 0 mismatches, formatters (stylish/json/compact/unix),
+  2,459 oracle cases and 0 mismatches, formatters (stylish/json/compact/unix),
   the CLI (--fix, --quiet, globs, stdin, --stdin-filename, --max-warnings), and
   suggestions in the message shape. `scripts/e2e.sh` compares it against the real
   eslint 8.57 CLI: 14/14 scenarios byte-identical, and CI runs the same gates
