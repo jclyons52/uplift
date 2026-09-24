@@ -48,13 +48,24 @@ inline eslint directives (`/* eslint-disable */`) not being honoured.
 | 21 | esutils | 409 | esutils-go | DONE | c9662c6 | |
 
 ## Composition target (not a leaf)
-- **eslint-go** — the Linter is complete and published (v0.1.0): parses with
+- **eslint-go** — the Linter is complete and published (v0.1.5): parses with
   espree-go in-process, scope analysis from eslint-scope-go, 46 rules with
   2,461 oracle cases and 0 mismatches, formatters (stylish/json/compact/unix),
   the CLI (--fix, --quiet, globs, stdin, --stdin-filename, --max-warnings), and
   suggestions in the message shape. `scripts/e2e.sh` compares it against the real
-  eslint 8.57 CLI: 14/14 scenarios byte-identical, and CI runs the same gates
-  (npm ci the oracle, then the suite and e2e).
+  eslint 8.57 CLI: 17/17 scenarios byte-identical (module, sloppy script and
+  `env: node` fixtures), and CI runs the same gates (npm ci the oracle, then the
+  suite, e2e, the declared-vs-executed case count and the dogfood harness).
+- **Dogfooding** (`scripts/dogfood.py`, in CI) lints the 772 JavaScript files of
+  the vendored npm oracle with both tools and attributes every difference:
+  **729/772 (94.4%) byte-identical, 0 crashes**, with the rest being the two
+  documented gaps (28 files relying on inline `/* eslint */` directives, 14 under
+  packages that ship their own `.eslintrc`) plus one column edge case on a
+  minified bundle. It started at 7 crashes and 134 differing files; the six bugs
+  it surfaced — a `"use strict"` capture-group panic, shebang handling, an octal
+  escape panic, the hashbang comment type, `env: node`'s globalReturn scope
+  structure, and `globals: {X: "off"}` — are all fixed, each with a regression
+  test or fixture.
 - Published family: eslint-go, espree-go, esquery-go, acorn-go (v0.2.0),
   eslint-scope-go, estraverse-go, esutils-go, eslint-visitor-keys-go,
   eslint-community-regexpp, prelude-ls-go, argparse-go, ignore-go, uri-js-go,
